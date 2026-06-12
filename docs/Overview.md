@@ -248,7 +248,7 @@ The version is negotiated between the components at the beginning of every workf
 
 #### Request, Notification and Response Ordering
 
-The server supports processing only a single request at a time. Unless the request is [Cancel](#cancel) or [Abort](#abort) request.
+The server supports processing only a single request at a time. Unless the request is [Cancel](#cancellation-support) or [Abort](#abort) request.
 
 All notifications are sent before a response is sent.
 
