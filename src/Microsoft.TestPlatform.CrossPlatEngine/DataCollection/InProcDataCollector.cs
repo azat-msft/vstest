@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -35,6 +36,11 @@ internal class InProcDataCollector : IInProcDataCollector
     /// Config XML from the runsettings for current datacollector
     /// </summary>
     private readonly string? _configXml;
+
+    /// <summary>
+    /// Cache of <see cref="MethodInfo"/> lookups keyed by method name, to avoid repeated reflection on hot test-event paths.
+    /// </summary>
+    private readonly Dictionary<string, MethodInfo?> _methodInfoCache = new();
 
     /// <summary>
     /// AssemblyLoadContext for current platform
@@ -113,7 +119,11 @@ internal class InProcDataCollector : IInProcDataCollector
     /// <param name="methodArg">Arguments for the method</param>
     public void TriggerInProcDataCollectionMethod(string methodName, InProcDataCollectionArgs methodArg)
     {
-        var methodInfo = GetMethodInfoFromType(_dataCollectorObject?.GetType(), methodName, [methodArg.GetType()]);
+        if (!_methodInfoCache.TryGetValue(methodName, out var methodInfo))
+        {
+            methodInfo = GetMethodInfoFromType(_dataCollectorObject?.GetType(), methodName, [methodArg.GetType()]);
+            _methodInfoCache[methodName] = methodInfo;
+        }
 
         if (methodName.Equals(Constants.TestSessionStartMethodName))
         {
