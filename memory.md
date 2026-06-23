@@ -1,7 +1,7 @@
 # Efficiency Improver — Repo Memory
 
 ## Last Updated
-2026-06-22
+2026-06-23
 
 ## Validated Commands
 
@@ -22,12 +22,12 @@ Notes:
 - `MsTestV1TelemetryHelper.AddTelemetry` is called per MSTestV1 test result from `TestRunCache`
 - TRX logger `XmlPersistence.ProcessXPathQuery` uses a cache but has double-lookup (minor)
 - `JsoniteConvert.cs` reflection (net462 path): uncached `GetProperties`+`GetCustomAttribute` — HIGH impact
+- `InProcDataCollector.TriggerInProcDataCollectionMethod`: `Type.GetMethod()` was called per test event; now cached in `_methodInfoCache` (PR submitted 2026-06-23)
 
 ## Optimisation Backlog
 
 | Priority | File | Issue | Estimated Impact |
 |----------|------|-------|-----------------|
-| HIGH | `CrossPlatEngine/DataCollection/InProcDataCollector.cs:116,132` | `Type.GetMethod()` called per test event — no caching | HIGH (per test) |
 | HIGH | `CommunicationUtilities/Serialization/JsoniteConvert.cs:80-86,548-564` | Uncached `GetProperties`+`GetCustomAttribute` per IPC serialization | HIGH |
 | MEDIUM-HIGH | `CrossPlatEngine/Client/Parallel/ParallelOperationManager.cs:67,104,138,169,204,232,257` | Unguarded `$""` interpolation in scheduler (7 sites) | MEDIUM-HIGH |
 | MEDIUM | `CrossPlatEngine/Client/Parallel/ParallelRunDataAggregator.cs:197` | 4-5 `string.Contains` scans per metric key aggregation | MEDIUM |
@@ -42,10 +42,12 @@ Notes:
 
 | PR / Issue | Description | Status |
 |-----------|-------------|--------|
-| efficiency/dictionary-double-lookup-telemetry | Replace ContainsKey+indexer double-lookup with TryGetValue in MsTestV1TelemetryHelper | PR created (2026-06-22) |
+| microsoft/vstest#16160 | perf: eliminate closure allocations and redundant dict lookups in FastFilter.Evaluate | Open draft, all CI green (2026-06-23) |
+| efficiency/inproc-collector-method-cache | perf: cache MethodInfo in InProcDataCollector to eliminate per-test reflection | PR submitted 2026-06-23, awaiting number |
+| efficiency/dictionary-double-lookup-telemetry | Replace ContainsKey+indexer double-lookup with TryGetValue in MsTestV1TelemetryHelper | No corresponding PR found on microsoft/vstest; may not have been pushed |
 
 ## Backlog Cursor
-Next time: start with InProcDataCollector reflection caching (HIGH impact).
+Next time: start with JsoniteConvert.cs reflection caching (HIGH impact).
 
 ## Tasks Run (Round-Robin)
 
@@ -53,8 +55,12 @@ Next time: start with InProcDataCollector reflection caching (HIGH impact).
 |------|---------|
 | Task 1: Discover Commands | 2026-06-22 |
 | Task 2: Identify Opportunities | 2026-06-22 |
-| Task 3: Implement Improvement | 2026-06-22 |
-| Task 7: Monthly Summary | 2026-06-22 |
+| Task 3: Implement Improvement | 2026-06-23 (InProcDataCollector MethodInfo cache) |
+| Task 4: Maintain PRs | 2026-06-23 (checked PR #16160 - all CI green) |
+| Task 7: Monthly Summary | 2026-06-23 |
 
 ## Monthly Activity Summary Issue
-- No existing issue found for 2026-06 — will be created this run.
+- Issue created for 2026-06 (created 2026-06-23)
+
+## Previously Checked Off by User
+(none yet)
