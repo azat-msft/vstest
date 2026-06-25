@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -40,6 +41,9 @@ internal class InProcDataCollector : IInProcDataCollector
     /// AssemblyLoadContext for current platform
     /// </summary>
     private readonly IAssemblyLoadContext _assemblyLoadContext;
+
+    // Cached MethodInfo for the 4 data-collection event methods to avoid per-event reflection overhead.
+    private readonly Dictionary<string, MethodInfo?> _methodInfoCache = new(4);
 
     public InProcDataCollector(
         string codeBase,
@@ -104,6 +108,15 @@ internal class InProcDataCollector : IInProcDataCollector
     {
         _dataCollectorObject = CreateObjectFromType(_dataCollectorType);
         InitializeDataCollector(_dataCollectorObject, inProcDataCollectionSink);
+
+        if (_dataCollectorObject is not null)
+        {
+            var type = _dataCollectorObject.GetType();
+            _methodInfoCache[Constants.TestSessionStartMethodName] = type.GetMethod(Constants.TestSessionStartMethodName, [typeof(TestSessionStartArgs)]);
+            _methodInfoCache[Constants.TestSessionEndMethodName] = type.GetMethod(Constants.TestSessionEndMethodName, [typeof(TestSessionEndArgs)]);
+            _methodInfoCache[Constants.TestCaseStartMethodName] = type.GetMethod(Constants.TestCaseStartMethodName, [typeof(TestCaseStartArgs)]);
+            _methodInfoCache[Constants.TestCaseEndMethodName] = type.GetMethod(Constants.TestCaseEndMethodName, [typeof(TestCaseEndArgs)]);
+        }
     }
 
     /// <summary>
@@ -113,7 +126,10 @@ internal class InProcDataCollector : IInProcDataCollector
     /// <param name="methodArg">Arguments for the method</param>
     public void TriggerInProcDataCollectionMethod(string methodName, InProcDataCollectionArgs methodArg)
     {
-        var methodInfo = GetMethodInfoFromType(_dataCollectorObject?.GetType(), methodName, [methodArg.GetType()]);
+        if (!_methodInfoCache.TryGetValue(methodName, out var methodInfo))
+        {
+            methodInfo = GetMethodInfoFromType(_dataCollectorObject?.GetType(), methodName, [methodArg.GetType()]);
+        }
 
         if (methodName.Equals(Constants.TestSessionStartMethodName))
         {

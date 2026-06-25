@@ -10,6 +10,7 @@ using Microsoft.TestPlatform.TestUtilities;
 using Microsoft.VisualStudio.TestPlatform.Common.ExtensionFramework;
 using Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.DataCollection;
 using Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.DataCollection.Interfaces;
+using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.DataCollection;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.DataCollector.InProcDataCollector;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.InProcDataCollector;
@@ -114,6 +115,42 @@ public class InProcDataCollectorTests
         Assert.AreEqual(_inProcDataCollector.AssemblyQualifiedName, type.AssemblyQualifiedName);
     }
 
+    [TestMethod]
+    public void TriggerInProcDataCollectionMethodShouldInvokeMethodViaCache()
+    {
+        RecordingInProcDataCollector.TestCaseStartCalled = false;
+        RecordingInProcDataCollector.TestCaseEndCalled = false;
+
+        var type = typeof(RecordingInProcDataCollector);
+
+        _assemblyLoadContext.Setup(alc => alc.LoadAssemblyFromPath(It.IsAny<string>()))
+            .Returns(type.Assembly);
+
+        _inProcDataCollector = new InProcDataCollector(
+            string.Empty,
+            type.AssemblyQualifiedName!,
+            type,
+            "<Configuration/>",
+            _assemblyLoadContext.Object,
+            TestPluginCache.Instance);
+
+        var sink = new Mock<IDataCollectionSink>();
+        _inProcDataCollector.LoadDataCollector(sink.Object);
+
+        // TestCaseStart and TestCaseEnd are the per-test hot-path methods; verify they are dispatched correctly via the cache.
+        var testCase = new TestCase("FQN", new System.Uri("executor://test"), "source");
+        _inProcDataCollector.TriggerInProcDataCollectionMethod(
+            "TestCaseStart",
+            new TestCaseStartArgs(testCase));
+
+        _inProcDataCollector.TriggerInProcDataCollectionMethod(
+            "TestCaseEnd",
+            new TestCaseEndArgs(new DataCollectionContext(testCase), TestOutcome.Passed));
+
+        Assert.IsTrue(RecordingInProcDataCollector.TestCaseStartCalled, "TestCaseStart should have been invoked via cached MethodInfo.");
+        Assert.IsTrue(RecordingInProcDataCollector.TestCaseEndCalled, "TestCaseEnd should have been invoked via cached MethodInfo.");
+    }
+
     private class TestableInProcDataCollector : InProcDataCollection
     {
         public void Initialize(IDataCollectionSink dataCollectionSink)
@@ -140,5 +177,21 @@ public class InProcDataCollectorTests
         {
             throw new System.NotImplementedException();
         }
+    }
+
+    private class RecordingInProcDataCollector : InProcDataCollection
+    {
+        public static bool TestCaseStartCalled;
+        public static bool TestCaseEndCalled;
+
+        public void Initialize(IDataCollectionSink dataCollectionSink) { }
+
+        public void TestSessionStart(TestSessionStartArgs testSessionStartArgs) { }
+
+        public void TestCaseStart(TestCaseStartArgs testCaseStartArgs) => TestCaseStartCalled = true;
+
+        public void TestCaseEnd(TestCaseEndArgs testCaseEndArgs) => TestCaseEndCalled = true;
+
+        public void TestSessionEnd(TestSessionEndArgs testSessionEndArgs) { }
     }
 }
