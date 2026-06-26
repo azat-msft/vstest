@@ -1,67 +1,57 @@
-# Efficiency Improver — Repo Memory
+# Efficiency Improver Memory — azat-msft/vstest
+Last updated: 2026-06-27
 
-## Last Updated
-2026-06-25
-
-## Validated Commands
-
-| Action | Command |
-|--------|---------|
-| Bootstrap SDK + build | `./build.sh --build --restore -c Release` |
-| Build specific project | `.dotnet/dotnet build <project.csproj> -c Release -f net11.0 --no-restore` |
-| Run unit tests (filter) | `.dotnet/dotnet test <project.csproj> -c Release -f net11.0 --no-build --filter <filter>` |
-| Full unit tests | `./test.sh` |
-| Build + pack | `./build.sh --pack -c Release` |
-
-Notes:
-- `./test.sh -p <pattern>` does NOT work — dots in project names cause MSBuild errors
-- Use `.dotnet/dotnet test <csproj> -f net11.0` for CrossPlatEngine unit tests
-- TFMs: `net11.0` and `net481`
-- 8 pre-existing Linux failures in CrossPlatEngine.UnitTests (Windows path `C:\` assertions)
+## Build/Test Commands (Validated)
+- **Build (Debug):** `./build.sh` — downloads pinned SDK to `.dotnet/` if needed
+- **Build (Release / CI-like):** `./build.sh -c Release`
+- **Test by pattern:** `./test.sh -p <pattern>` (e.g. `CrossPlatEngine`, `CommunicationUtilities`)
+- **Note:** SDK not available in this agent environment; CI must validate builds
 
 ## Efficiency Notes
+- EqtTrace pattern: `if (EqtTrace.IsVerboseEnabled) { EqtTrace.Verbose($"...{var}..."); }` for any interpolated trace calls
+- `$"..."` with no holes should be `"..."` (no allocation either way, but cleaner)
+- `Assert.Contains(needle, haystack)` — first param is needle (opposite of StringAssert)
+- PRs created by safe-outputs always have head in microsoft/vstest (not fork), so `push_to_pull_request_branch` won't work for those — use comments with exact diff instead
+- PR numbers are not available until after workflow completes (deferred creation)
+- Monthly summary issue: #16140 (microsoft/vstest) — June 2026
 
-- `TestRunCache.OnNewTestResult` is the per-test hottest path — called once per test result
-- `MsTestV1TelemetryHelper.AddTelemetry` is called per MSTestV1 test result from `TestRunCache`
-- `DiscoveryDataAggregator.MarkSourcesBasedOnDiscoveredTestCases` — fixed 2026-06-24
-- InProcDataCollector: MethodInfo cache eliminates 20K+ Type.GetMethod calls per covered run (fixed 2026-06-25)
-- Fork `azat-msft/vstest` is behind `microsoft/vstest` main; need to merge upstream before new branches
+## Open PRs
+- **#16170** — perf: eliminate redundant ContainsKey in IPC deserialization hot path
+  - Status: Open (not draft), CI all green, has `🚢 Ship it!` label
+  - URL: https://github.com/microsoft/vstest/pull/16170
+- **#16177** — perf: eliminate string[1] allocation per test case in discovery source tracking
+  - Status: Draft, CI all green, reviewer raised _isMessageSent mid-batch guard concern
+  - Efficiency Improver commented 2026-06-27 with exact fix to apply
+  - URL: https://github.com/microsoft/vstest/pull/16177
+- **efficiency/guard-unguarded-trace-interpolations** — guard EqtTrace.Verbose interpolations in ParallelOperationManager
+  - Status: PR submitted this run (2026-06-27), number pending
+  - Branch: efficiency/guard-unguarded-trace-interpolations
+
+## Merged/Closed PRs
+- #16139 — closed by maintainer (FastFilter dict lookups — "not worth it")
+- #16144 — MERGED (DateTime.Now → UtcNow)
+- #16147 — MERGED (Task.FromResult(0) → Task.CompletedTask)
+- #16150 — MERGED (ManualResetEvent → ManualResetEventSlim in JobQueue)
+- #16160 — MERGED (FastFilter.Evaluate closure/double-lookup elimination)
+- #16165 — MERGED 2026-06-26 (pre-allocate List capacity in DiscoveryResultCache/TestRunCache)
 
 ## Optimisation Backlog
+| Priority | File | Opportunity | Impact |
+|---|---|---|---|
+| LOW-MEDIUM | ParallelRunDataAggregator.cs | 4 string.Contains scans per metric key in aggregation loop (~line 197) | LOW-MED |
+| LOW | MsTestV1TelemetryHelper.cs | ContainsKey + indexer double-hash in AddTelemetry | LOW |
+| LOW | Condition.cs | GetPropertyValue: string[1] per non-array property in slow-filter | LOW |
 
-| Priority | File | Issue | Estimated Impact |
-|----------|------|-------|-----------------|
-| MEDIUM | `CrossPlatEngine/Client/Parallel/ParallelOperationManager.cs` | 7 unguarded `$""` interpolations in scheduler (lines 67, 104, 138, 169, 204, 232, 257) | MEDIUM |
-| LOW-MEDIUM | `CrossPlatEngine/Client/Parallel/ParallelRunDataAggregator.cs:197` | 4 `string.Contains` scans per metric key aggregation | LOW-MEDIUM |
-| LOW | `CrossPlatEngine/Execution/MSTestV1TelemetryHelper.cs:70-76` | `ContainsKey+indexer` double-lookup → `TryGetValue` (MsTestV1 only) | LOW |
+**Backlog cursor:** ParallelRunDataAggregator.cs ~line 197
 
-## Work In Progress / Completed
+## Tasks Last Run
+- Task 3 (Implement improvement): 2026-06-27
+- Task 4 (Maintain PRs): 2026-06-27
+- Task 7 (Monthly summary): 2026-06-27
+- Task 1 (Discover commands): 2026-06-19 (stable)
+- Task 2 (Identify opportunities): 2026-06-26
+- Task 5 (Comment on issues): not recently run
+- Task 6 (Measurement infrastructure): not recently run
 
-| PR / Issue | Description | Status |
-|-----------|-------------|--------|
-| microsoft/vstest#16165 | perf: pre-allocate List(T) capacity in DiscoveryResultCache and TestRunCache | Open draft, all CI green |
-| microsoft/vstest#16170 | perf: eliminate redundant ContainsKey in IPC deserialization hot path | Open draft, all CI green |
-| efficiency/inproc-collector-method-cache | perf: cache MethodInfo in InProcDataCollector to avoid per-event reflection | PR submitted 2026-06-25, awaiting number |
-| microsoft/vstest#16160 | perf: eliminate closure allocations and redundant dict lookups in FastFilter.Evaluate | MERGED |
-| microsoft/vstest#16150 | perf: replace ManualResetEvent with ManualResetEventSlim | MERGED |
-| microsoft/vstest#16147 | perf: replace Task.FromResult(0) with Task.CompletedTask | MERGED |
-| microsoft/vstest#16144 | perf: replace DateTime.Now with DateTime.UtcNow | MERGED |
-
-## Backlog Cursor
-Next time: try ParallelOperationManager unguarded string interpolations (lines 67, 104, 138, 169, 204, 232, 257).
-
-## Tasks Run (Round-Robin)
-
-| Task | Last Run |
-|------|---------|
-| Task 1: Discover Commands | 2026-06-22 |
-| Task 2: Identify Opportunities | 2026-06-22 |
-| Task 3: Implement Improvement | 2026-06-25 (InProcDataCollector MethodInfo cache) |
-| Task 4: Maintain PRs | 2026-06-25 (#16165 and #16170 both CI-green) |
-| Task 7: Monthly Summary | 2026-06-25 |
-
-## Monthly Activity Summary Issue
-- Issue #16140 created for 2026-06 (updated 2026-06-25 22:11 UTC)
-
-## Previously Checked Off by User
-(none yet)
+## Previously Checked Off Items (by maintainer)
+None noted.
