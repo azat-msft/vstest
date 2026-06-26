@@ -64,7 +64,10 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
 
     private void ClearSlots(bool acceptMoreWork)
     {
-        EqtTrace.Verbose($"ParallelOperationManager.ClearSlots: Clearing all slots. Slots should accept more work: {acceptMoreWork}");
+        if (EqtTrace.IsVerboseEnabled)
+        {
+            EqtTrace.Verbose($"ParallelOperationManager.ClearSlots: Clearing all slots. Slots should accept more work: {acceptMoreWork}");
+        }
 
         lock (_lock)
         {
@@ -101,7 +104,11 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
         _initializeWorkload = initializeWorkload ?? throw new ArgumentNullException(nameof(initializeWorkload));
         _runWorkload = runWorkload ?? throw new ArgumentNullException(nameof(runWorkload));
 
-        EqtTrace.Verbose($"ParallelOperationManager.StartWork: Starting adding {workloads.Count} workloads.");
+        if (EqtTrace.IsVerboseEnabled)
+        {
+            EqtTrace.Verbose($"ParallelOperationManager.StartWork: Starting adding {workloads.Count} workloads.");
+        }
+
         _workloads.AddRange(workloads);
 
         ClearSlots(acceptMoreWork: true);
@@ -135,7 +142,7 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
             // so we should not start more work.
             if (!_acceptMoreWork)
             {
-                EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: We don't accept more work, returning false.");
+                EqtTrace.Verbose("ParallelOperationManager.RunWorkInParallel: We don't accept more work, returning false.");
                 return false;
             }
 
@@ -166,7 +173,10 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
 
                 _workloads.Remove(workload);
 
-                EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: Adding 1 workload to slot, remaining workloads {_workloads.Count}.");
+                if (EqtTrace.IsVerboseEnabled)
+                {
+                    EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: Adding 1 workload to slot, remaining workloads {_workloads.Count}.");
+                }
 
                 // This must be set last, every loop below looks at this property,
                 // and they can do so from a different thread. So if we mark it as HasWork before actually assigning the work
@@ -201,7 +211,11 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
             // We already started as many as we were allowed, jump out;
             if (startedWork == MaxParallelLevel)
             {
-                EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: We started {startedWork} work items, which is the max parallel level. Won't start more work.");
+                if (EqtTrace.IsVerboseEnabled)
+                {
+                    EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: We started {startedWork} work items, which is the max parallel level. Won't start more work.");
+                }
+
                 break;
             }
         }
@@ -229,7 +243,11 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
                 // We already started as many as we were allowed, jump out;
                 if (startedWork == MaxParallelLevel)
                 {
-                    EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: We started {startedWork} work items, which is the max parallel level. Won't start more work.");
+                    if (EqtTrace.IsVerboseEnabled)
+                    {
+                        EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: We started {startedWork} work items, which is the max parallel level. Won't start more work.");
+                    }
+
                     break;
                 }
             }
@@ -254,7 +272,11 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
         // Return true when we started more work. Or false, when there was nothing more to do.
         // This will propagate to handling of partial discovery or partial run.
         var weAddedMoreWork = preStartedWork + startedWork > 0;
-        EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: We started {preStartedWork + startedWork} work items in here, returning {weAddedMoreWork}.");
+        if (EqtTrace.IsVerboseEnabled)
+        {
+            EqtTrace.Verbose($"ParallelOperationManager.RunWorkInParallel: We started {preStartedWork + startedWork} work items in here, returning {weAddedMoreWork}.");
+        }
+
         return weAddedMoreWork;
     }
 
@@ -317,7 +339,7 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
 
     public void DoActionOnAllManagers(Action<TManager> action, bool doActionsInParallel = false)
     {
-        EqtTrace.Verbose($"ParallelOperationManager.DoActionOnAllManagers: Calling an action on all managers.");
+        EqtTrace.Verbose("ParallelOperationManager.DoActionOnAllManagers: Calling an action on all managers.");
         // We don't need to lock here, we just grab the current list of
         // slots that are occupied (have managers) and run action on each one of them.
         var managers = _managerSlots.Where(slot => slot.HasWork).Select(slot => slot.Manager).ToImmutableArray();
@@ -363,13 +385,13 @@ internal sealed class ParallelOperationManager<TManager, TEventHandler, TWorkloa
 
     internal void StopAllManagers()
     {
-        EqtTrace.Verbose($"ParallelOperationManager.StopAllManagers: Stopping all managers.");
+        EqtTrace.Verbose("ParallelOperationManager.StopAllManagers: Stopping all managers.");
         ClearSlots(acceptMoreWork: false);
     }
 
     public void Dispose()
     {
-        EqtTrace.Verbose($"ParallelOperationManager.Dispose: Disposing all managers.");
+        EqtTrace.Verbose("ParallelOperationManager.Dispose: Disposing all managers.");
         ClearSlots(acceptMoreWork: false);
     }
 
