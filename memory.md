@@ -16,16 +16,15 @@ Last updated: 2026-06-27
 - Monthly summary issue: #16140 (microsoft/vstest) — June 2026
 
 ## Open PRs
-- **#16170** — perf: eliminate redundant ContainsKey in IPC deserialization hot path
-  - Status: Open (not draft), CI all green, has `🚢 Ship it!` label
-  - URL: https://github.com/microsoft/vstest/pull/16170
 - **#16177** — perf: eliminate string[1] allocation per test case in discovery source tracking
-  - Status: Draft, CI all green, reviewer raised _isMessageSent mid-batch guard concern
-  - Efficiency Improver commented 2026-06-27 with exact fix to apply
+  - Status: Draft, CI all green
   - URL: https://github.com/microsoft/vstest/pull/16177
-- **efficiency/guard-unguarded-trace-interpolations** — guard EqtTrace.Verbose interpolations in ParallelOperationManager
+- **#16179** — perf: avoid string[1] allocation in Condition.Evaluate for single-string properties
+  - Status: Draft, CI all green
+  - URL: https://github.com/microsoft/vstest/pull/16179
+- **#aw_pr_disc_guard** — perf: guard string.Join EqtTrace calls in ParallelProxyDiscoveryManager
   - Status: PR submitted this run (2026-06-27), number pending
-  - Branch: efficiency/guard-unguarded-trace-interpolations
+  - Branch: efficiency/guard-discovery-trace-allocations
 
 ## Merged/Closed PRs
 - #16139 — closed by maintainer (FastFilter dict lookups — "not worth it")
@@ -34,23 +33,23 @@ Last updated: 2026-06-27
 - #16150 — MERGED (ManualResetEvent → ManualResetEventSlim in JobQueue)
 - #16160 — MERGED (FastFilter.Evaluate closure/double-lookup elimination)
 - #16165 — MERGED 2026-06-26 (pre-allocate List capacity in DiscoveryResultCache/TestRunCache)
+- #16170 — MERGED (IPC ContainsKey→single TryGetValue)
 
 ## Optimisation Backlog
 | Priority | File | Opportunity | Impact |
 |---|---|---|---|
-| LOW-MEDIUM | ParallelRunDataAggregator.cs | 4 string.Contains scans per metric key in aggregation loop (~line 197) | LOW-MED |
 | LOW | MsTestV1TelemetryHelper.cs | ContainsKey + indexer double-hash in AddTelemetry | LOW |
-| LOW | Condition.cs | GetPropertyValue: string[1] per non-array property in slow-filter | LOW |
+| LOW | ParallelRunDataAggregator.cs | 4x string.Contains scans per metric key (~line 197) — keys are short so impact is minimal | LOW |
 
-**Backlog cursor:** ParallelRunDataAggregator.cs ~line 197
+**Backlog cursor:** MsTestV1TelemetryHelper.cs
 
 ## Tasks Last Run
-- Task 3 (Implement improvement): 2026-06-27
-- Task 4 (Maintain PRs): 2026-06-27
-- Task 7 (Monthly summary): 2026-06-27
+- Task 3 (Implement improvement): 2026-06-27 (this run)
+- Task 4 (Maintain PRs): 2026-06-27 (checked, all green)
+- Task 5 (Comment on issues): 2026-06-27 (this run, #16172)
+- Task 7 (Monthly summary): 2026-06-27 (this run)
 - Task 1 (Discover commands): 2026-06-19 (stable)
 - Task 2 (Identify opportunities): 2026-06-26
-- Task 5 (Comment on issues): not recently run
 - Task 6 (Measurement infrastructure): not recently run
 
 ## Previously Checked Off Items (by maintainer)
