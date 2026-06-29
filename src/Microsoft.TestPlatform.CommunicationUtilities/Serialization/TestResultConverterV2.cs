@@ -68,9 +68,9 @@ internal class TestResultConverterV2 : JsonConverter<TestResult>
         if (data.TryGetProperty("Duration", out var duration) && duration.ValueKind != JsonValueKind.Null)
             testResult.Duration = TimeSpan.Parse(duration.GetString()!, CultureInfo.InvariantCulture);
         if (data.TryGetProperty("StartTime", out var startTime) && startTime.ValueKind != JsonValueKind.Null)
-            testResult.StartTime = DateTimeOffset.Parse(startTime.GetString()!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            testResult.StartTime = startTime.TryGetDateTimeOffset(out var startDto) ? startDto : DateTimeOffset.Parse(startTime.GetString()!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
         if (data.TryGetProperty("EndTime", out var endTime) && endTime.ValueKind != JsonValueKind.Null)
-            testResult.EndTime = DateTimeOffset.Parse(endTime.GetString()!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            testResult.EndTime = endTime.TryGetDateTimeOffset(out var endDto) ? endDto : DateTimeOffset.Parse(endTime.GetString()!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
 
         // Custom properties
         if (data.TryGetProperty("Properties", out var properties) && properties.GetArrayLength() > 0)
