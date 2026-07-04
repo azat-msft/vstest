@@ -145,13 +145,19 @@ internal class TestObjectBaseConverter : JsonConverter<TestObject>
             case byte by: writer.WriteNumberValue(by); break;
             case sbyte sb: writer.WriteNumberValue(sb); break;
             case decimal dec: writer.WriteNumberValue(dec); break;
-            case char c: writer.WriteStringValue(c.ToString()); break;
+            case char c:
+                writer.WriteStringValue(stackalloc char[1] { c });
+                break;
             case DateTimeOffset dto: writer.WriteStringValue(dto); break;
             case DateTime dt: writer.WriteStringValue(dt); break;
             case Guid g: writer.WriteStringValue(g); break;
             case Uri u: writer.WriteStringValue(u.OriginalString); break;
             case JsonElement je: je.WriteTo(writer); break;
-            case TimeSpan ts: writer.WriteStringValue(ts.ToString()); break;
+            case TimeSpan ts:
+                Span<char> tsBuf = stackalloc char[32];
+                ts.TryFormat(tsBuf, out int tsLen, "c");
+                writer.WriteStringValue(tsBuf[..tsLen]);
+                break;
             case Enum e:
                 // Write enums as their underlying numeric value.
                 writer.WriteNumberValue(Convert.ToInt64(e, CultureInfo.InvariantCulture));

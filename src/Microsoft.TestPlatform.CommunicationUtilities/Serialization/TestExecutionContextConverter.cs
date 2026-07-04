@@ -49,7 +49,9 @@ internal class TestExecutionContextConverter : JsonConverter<TestExecutionContex
     {
         writer.WriteStartObject();
         writer.WriteNumber("FrequencyOfRunStatsChangeEvent", value.FrequencyOfRunStatsChangeEvent);
-        writer.WriteString("RunStatsChangeEventTimeout", value.RunStatsChangeEventTimeout.ToString());
+        Span<char> timeoutBuf = stackalloc char[32];
+        value.RunStatsChangeEventTimeout.TryFormat(timeoutBuf, out int timeoutLen, "c");
+        writer.WriteString("RunStatsChangeEventTimeout", timeoutBuf[..timeoutLen]);
         writer.WriteBoolean("InIsolation", value.InIsolation);
         writer.WriteBoolean("KeepAlive", value.KeepAlive);
         writer.WriteBoolean("AreTestCaseLevelEventsRequired", value.AreTestCaseLevelEventsRequired);
