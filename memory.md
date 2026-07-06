@@ -1,5 +1,5 @@
 # Efficiency Improver Memory — azat-msft/vstest
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 ## Build/Test Commands (Validated)
 - **Build (Debug):** `./build.sh` — downloads pinned SDK to `.dotnet/` if needed
@@ -26,14 +26,14 @@ Last updated: 2026-07-05
   - Branch: efficiency/discovery-source-tracking-opt-724a5cbd5665dbe1
   - Status: Open draft; CI ALL GREEN (4/4) as of 2026-07-04
 - **#16216** — perf: eliminate Duration.ToString() and Guid.ToString() allocations in IPC serializers
-  - Status: Open draft; CI Source-Build ✅, Windows Build 🔄 in-progress as of 2026-07-05 17:25 UTC
-  - Impact: ~10K heap string allocs eliminated per 10K-test run (Duration V1+V2, Guid V1)
+  - Branch: efficiency/eliminate-duration-tostring-in-serializers-1deb46d88fccf54d
+  - Status: Open draft; CI ALL GREEN (4/4) as of 2026-07-05
+- **#16222** — perf: use JsonElement.TryGetGuid/TryGetDateTimeOffset in V2 IPC deserializers
+  - Branch: efficiency/eliminate-getstring-parse-in-v2-converters-bd89d610163d9b9a
+  - Status: Open draft; CI ALL GREEN (4/4) as of 2026-07-06 18:29 UTC
 
 ## Open Issues (Efficiency Improver created)
-- **#16217 (TBD)** — Add GC.GetTotalAllocatedBytes allocation tracking to serialization perf tests
-  - Created: 2026-07-05 17:38 UTC (number estimated, not yet indexed)
-  - Type: Task 6 measurement infrastructure proposal
-  - Proposal: Add Allocations_* test methods to SerializationPerformanceTests using GC.GetTotalAllocatedBytes(precise: true)
+- None with pending action (issue #16217 about GC allocation tracking was estimated to be created, but check actual issue list)
 
 ## Merged/Closed PRs
 - #16139 — closed by maintainer (FastFilter dict lookups — "not worth it")
@@ -48,29 +48,22 @@ Last updated: 2026-07-05
 - #16182 — MERGED (FilterExpression leaf-node short-circuit)
 - #16193 — MERGED 2026-07-01 (v2 write path Guid.ToString → WriteString(Guid) zero-alloc)
 
-## Measurement Infrastructure (Task 6) Findings — 2026-07-05
-- `SerializationPerformanceTests.cs`: uses Stopwatch only; wall-clock timing; no allocation tracking
-- `PerformanceTests.cs`: fully `[Ignore]`d — timing thresholds were brittle in CI
-- `perf.ps1`: Windows-only PowerShell; depends on Benchmark PS module; not CI-integrated
-- **Gap**: No GC.GetTotalAllocatedBytes() coverage anywhere; allocation impact of our PRs is inferred, not measured
-- **Proposed fix**: Issue ~#16217 — add Allocations_* variants for key serialize/deserialize paths
-
 ## Optimisation Backlog
 | Priority | File | Opportunity | Impact |
 |---|---|---|---|
-| MEDIUM | SerializationPerformanceTests.cs | Add GC.GetTotalAllocatedBytes() variants — see issue ~#16217 | Measurement enablement |
-| LOW | GetRawText().Trim('"') (5 sites, else branch) | Rarely executes; marginal gain from eliminating | marginal |
-| LOW | MsTestV1TelemetryHelper.cs | ContainsKey + indexer double-hash in AddTelemetry (MSTest v1 only) | LOW |
+| LOW | TestRunStatisticsConverter.cs | `TestOutcome.ToString()` in WriteNumber — once per TestRunComplete | negligible |
+| LOW | Multiple converters (5 sites) | `GetRawText().Trim('"')` in else branch (non-string JSON tokens) | marginal |
+| LOW | TestObjectBaseConverter.cs | `WritePropertyValue` TimeSpan case: `ts.ToString()` for custom TimeSpan properties | marginal |
 
-**Backlog cursor:** HIGH items exhausted; Task 6 infrastructure gap identified; next candidate for Task 3 = LOW (marginal gains only remaining).
+**Backlog cursor:** HIGH items exhausted; all 4 open PRs cover highest-impact remaining IPC allocs. Only LOW/marginal items left.
 
 ## Tasks Last Run
-- Task 4 (Maintain PRs): 2026-07-05 17:38 UTC (this run — checked #16216 CI; Windows in-progress)
-- Task 6 (Measurement infrastructure): 2026-07-05 17:38 UTC (this run — found GC alloc gap, created issue)
-- Task 7 (Monthly summary): 2026-07-05 17:38 UTC (this run — updated #16211 with corrected #16216 ref + this run entry)
-- Task 2 (Identify opportunities): 2026-07-05 17:00 UTC (previous run)
-- Task 3 (Implement improvement): 2026-07-05 17:00 UTC (previous run — PR #16216)
-- Task 5 (Comment on issues): 2026-07-03 (commented on #15295)
+- Task 4 (Maintain PRs): 2026-07-06 18:40 UTC — verified #16210, #16213, #16216, #16222 all CI green
+- Task 2 (Identify opportunities): 2026-07-06 18:40 UTC — broad scan, HIGH items exhausted, only LOW remain
+- Task 5 (Comment on issues): 2026-07-06 18:40 UTC — no new issues or human comments since last visit
+- Task 7 (Monthly summary): 2026-07-06 18:40 UTC — updated #16211 with #16222 reference + this run
+- Task 6 (Measurement infrastructure): 2026-07-05 17:38 UTC (GC alloc gap identified, issue created)
+- Task 3 (Implement improvement): 2026-07-06 17:32 UTC (PR #16222 created)
 - Task 1 (Discover commands): 2026-06-19 (stable)
 
 ## Previously Checked Off Items (by maintainer)
