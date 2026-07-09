@@ -24,6 +24,37 @@ public class SerializationPerformanceTests
 {
     private const int Iterations = 1000;
 
+    /// <summary>
+    /// Runs <paramref name="action"/> once as a warmup, then measures elapsed time and (on .NET Core)
+    /// managed heap allocations for <paramref name="iterations"/> hot iterations.
+    /// </summary>
+    private static void MeasurePerf(string label, int iterations, Action action, bool includeAvg = false)
+    {
+        // Warmup — excluded from measurement
+        action();
+
+#if NETCOREAPP
+        var allocBefore = GC.GetAllocatedBytesForCurrentThread();
+#endif
+        var sw = Stopwatch.StartNew();
+        for (int i = 0; i < iterations; i++)
+        {
+            action();
+        }
+        sw.Stop();
+
+#if NETCOREAPP
+        var allocAfter = GC.GetAllocatedBytesForCurrentThread();
+        var bytesPerOp = (allocAfter - allocBefore) / iterations;
+        var suffix = includeAvg
+            ? $" ({sw.ElapsedMilliseconds / (double)iterations:F1}ms avg) | {bytesPerOp:N0} bytes/op"
+            : $" | {bytesPerOp:N0} bytes/op";
+#else
+        var suffix = includeAvg ? $" ({sw.ElapsedMilliseconds / (double)iterations:F1}ms avg)" : string.Empty;
+#endif
+        Console.WriteLine($"{label}: {sw.ElapsedMilliseconds}ms for {iterations} iterations{suffix}");
+    }
+
     [TestMethod]
     public void VerifySerializerName()
     {
@@ -123,29 +154,19 @@ public class SerializationPerformanceTests
     [TestMethod]
     public void Serialize_TestMessage_V1_SystemTextJson()
     {
-        JsonDataSerializer.Instance.SerializePayload(MessageType.TestMessage, TestMessagePayload, 1);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.TestMessage, TestMessagePayload, 1);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Serialize TestMessage V1: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Serialize TestMessage V1",
+            Iterations,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.TestMessage, TestMessagePayload, 1));
     }
 
     [TestMethod]
     public void Serialize_TestMessage_V7_SystemTextJson()
     {
-        JsonDataSerializer.Instance.SerializePayload(MessageType.TestMessage, TestMessagePayload, 7);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.TestMessage, TestMessagePayload, 7);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Serialize TestMessage V7: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Serialize TestMessage V7",
+            Iterations,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.TestMessage, TestMessagePayload, 7));
     }
 
     #endregion
@@ -156,18 +177,13 @@ public class SerializationPerformanceTests
     public void Deserialize_TestMessage_V7_SystemTextJson()
     {
         var json = JsonDataSerializer.Instance.SerializePayload(MessageType.TestMessage, TestMessagePayload, 7);
-
-        var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-        JsonDataSerializer.Instance.DeserializePayload<TestMessagePayload>(msg);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-            JsonDataSerializer.Instance.DeserializePayload<TestMessagePayload>(msg);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Deserialize TestMessage V7: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Deserialize TestMessage V7",
+            Iterations,
+            () => {
+                var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
+                JsonDataSerializer.Instance.DeserializePayload<TestMessagePayload>(msg);
+            });
     }
 
     #endregion
@@ -177,29 +193,19 @@ public class SerializationPerformanceTests
     [TestMethod]
     public void Serialize_TestCasesFound_V1_SystemTextJson()
     {
-        JsonDataSerializer.Instance.SerializePayload(MessageType.TestCasesFound, TestCases, 1);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.TestCasesFound, TestCases, 1);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Serialize TestCasesFound V1: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Serialize TestCasesFound V1",
+            Iterations,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.TestCasesFound, TestCases, 1));
     }
 
     [TestMethod]
     public void Serialize_TestCasesFound_V7_SystemTextJson()
     {
-        JsonDataSerializer.Instance.SerializePayload(MessageType.TestCasesFound, TestCases, 7);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.TestCasesFound, TestCases, 7);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Serialize TestCasesFound V7: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Serialize TestCasesFound V7",
+            Iterations,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.TestCasesFound, TestCases, 7));
     }
 
     #endregion
@@ -210,18 +216,13 @@ public class SerializationPerformanceTests
     public void Deserialize_TestCasesFound_V7_SystemTextJson()
     {
         var json = JsonDataSerializer.Instance.SerializePayload(MessageType.TestCasesFound, TestCases, 7);
-
-        var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-        JsonDataSerializer.Instance.DeserializePayload<List<TestCase>>(msg);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-            JsonDataSerializer.Instance.DeserializePayload<List<TestCase>>(msg);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Deserialize TestCasesFound V7: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Deserialize TestCasesFound V7",
+            Iterations,
+            () => {
+                var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
+                JsonDataSerializer.Instance.DeserializePayload<List<TestCase>>(msg);
+            });
     }
 
     #endregion
@@ -231,29 +232,19 @@ public class SerializationPerformanceTests
     [TestMethod]
     public void Serialize_DiscoveryComplete_V1_SystemTextJson()
     {
-        JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, DiscoveryCompletePayload, 1);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, DiscoveryCompletePayload, 1);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Serialize DiscoveryComplete V1: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Serialize DiscoveryComplete V1",
+            Iterations,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, DiscoveryCompletePayload, 1));
     }
 
     [TestMethod]
     public void Serialize_DiscoveryComplete_V7_SystemTextJson()
     {
-        JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, DiscoveryCompletePayload, 7);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, DiscoveryCompletePayload, 7);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Serialize DiscoveryComplete V7: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Serialize DiscoveryComplete V7",
+            Iterations,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, DiscoveryCompletePayload, 7));
     }
 
     #endregion
@@ -264,18 +255,13 @@ public class SerializationPerformanceTests
     public void Deserialize_DiscoveryComplete_V7_SystemTextJson()
     {
         var json = JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, DiscoveryCompletePayload, 7);
-
-        var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-        JsonDataSerializer.Instance.DeserializePayload<DiscoveryCompletePayload>(msg);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-            JsonDataSerializer.Instance.DeserializePayload<DiscoveryCompletePayload>(msg);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Deserialize DiscoveryComplete V7: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Deserialize DiscoveryComplete V7",
+            Iterations,
+            () => {
+                var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
+                JsonDataSerializer.Instance.DeserializePayload<DiscoveryCompletePayload>(msg);
+            });
     }
 
     #endregion
@@ -285,29 +271,19 @@ public class SerializationPerformanceTests
     [TestMethod]
     public void Serialize_ExecutionComplete_V1_SystemTextJson()
     {
-        JsonDataSerializer.Instance.SerializePayload(MessageType.ExecutionComplete, ExecutionCompletePayload, 1);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.ExecutionComplete, ExecutionCompletePayload, 1);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Serialize ExecutionComplete V1: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Serialize ExecutionComplete V1",
+            Iterations,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.ExecutionComplete, ExecutionCompletePayload, 1));
     }
 
     [TestMethod]
     public void Serialize_ExecutionComplete_V7_SystemTextJson()
     {
-        JsonDataSerializer.Instance.SerializePayload(MessageType.ExecutionComplete, ExecutionCompletePayload, 7);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.ExecutionComplete, ExecutionCompletePayload, 7);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Serialize ExecutionComplete V7: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Serialize ExecutionComplete V7",
+            Iterations,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.ExecutionComplete, ExecutionCompletePayload, 7));
     }
 
     #endregion
@@ -318,18 +294,13 @@ public class SerializationPerformanceTests
     public void Deserialize_ExecutionComplete_V7_SystemTextJson()
     {
         var json = JsonDataSerializer.Instance.SerializePayload(MessageType.ExecutionComplete, ExecutionCompletePayload, 7);
-
-        var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-        JsonDataSerializer.Instance.DeserializePayload<TestRunCompletePayload>(msg);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < Iterations; i++)
-        {
-            msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-            JsonDataSerializer.Instance.DeserializePayload<TestRunCompletePayload>(msg);
-        }
-        sw.Stop();
-        Console.WriteLine($"STJ Deserialize ExecutionComplete V7: {sw.ElapsedMilliseconds}ms for {Iterations} iterations");
+        MeasurePerf(
+            "STJ Deserialize ExecutionComplete V7",
+            Iterations,
+            () => {
+                var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
+                JsonDataSerializer.Instance.DeserializePayload<TestRunCompletePayload>(msg);
+            });
     }
 
     #endregion
@@ -392,16 +363,11 @@ public class SerializationPerformanceTests
     public void Serialize_BatchStatsChange_1000Results_V7()
     {
         var payload = BuildBatchStatsPayload(1000);
-        // Warmup
-        JsonDataSerializer.Instance.SerializePayload(MessageType.TestRunStatsChange, payload, 7);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < 10; i++)
-        {
-            JsonDataSerializer.Instance.SerializePayload(MessageType.TestRunStatsChange, payload, 7);
-        }
-        sw.Stop();
-        Console.WriteLine($"Serialize 1000-result StatsChange V7: {sw.ElapsedMilliseconds}ms for 10 iterations ({sw.ElapsedMilliseconds / 10.0}ms avg)");
+        MeasurePerf(
+            "Serialize 1000-result StatsChange V7",
+            10,
+            () => JsonDataSerializer.Instance.SerializePayload(MessageType.TestRunStatsChange, payload, 7),
+            includeAvg: true);
     }
 
     [TestMethod]
@@ -411,18 +377,14 @@ public class SerializationPerformanceTests
         var json = JsonDataSerializer.Instance.SerializePayload(MessageType.TestRunStatsChange, payload, 7);
         Console.WriteLine($"JSON size: {json.Length:N0} chars");
 
-        // Warmup
-        var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-        JsonDataSerializer.Instance.DeserializePayload<TestRunStatsPayload>(msg);
-
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < 10; i++)
-        {
-            msg = JsonDataSerializer.Instance.DeserializeMessage(json);
-            JsonDataSerializer.Instance.DeserializePayload<TestRunStatsPayload>(msg);
-        }
-        sw.Stop();
-        Console.WriteLine($"Deserialize 1000-result StatsChange V7: {sw.ElapsedMilliseconds}ms for 10 iterations ({sw.ElapsedMilliseconds / 10.0}ms avg)");
+        MeasurePerf(
+            "Deserialize 1000-result StatsChange V7",
+            10,
+            () => {
+                var msg = JsonDataSerializer.Instance.DeserializeMessage(json);
+                JsonDataSerializer.Instance.DeserializePayload<TestRunStatsPayload>(msg);
+            },
+            includeAvg: true);
     }
 
     [TestMethod]
