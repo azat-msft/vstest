@@ -45,7 +45,7 @@ internal static class MetadataReaderExtensionsHelper
     private static readonly Type[] EmptyTypeArray = [];
 
     public static Type[] DiscoverTestExtensionTypesV2Attribute(Assembly loadedAssembly, string assemblyFilePath)
-        => AssemblyCache.GetOrAdd(assemblyFilePath, DiscoverTestExtensionTypesV2AttributeInternal(loadedAssembly, assemblyFilePath));
+        => AssemblyCache.GetOrAdd(assemblyFilePath, _ => DiscoverTestExtensionTypesV2AttributeInternal(loadedAssembly, assemblyFilePath));
 
     private static Type[] DiscoverTestExtensionTypesV2AttributeInternal(Assembly loadedAssembly, string assemblyFilePath)
     {
