@@ -20,14 +20,10 @@ internal class RunSettingsManager : IRunSettingsProvider
         ActiveRunSettings = new RunSettings();
     }
 
-    #region IRunSettingsProvider
-
     /// <summary>
     /// Gets the active run settings.
     /// </summary>
     public RunSettings ActiveRunSettings { get; private set; }
-
-    #endregion
 
     /// <summary>
     /// Set the active run settings.
