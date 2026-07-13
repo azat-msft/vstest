@@ -186,6 +186,44 @@ dotnet test --collect "XPlat Code Coverage"
 
 Coverage attachments are written under the test run's `TestResults` directory.
 
+### Setup a project (legacy: Visual Studio 2017 / netcoreapp1.1)
+
+> **Legacy guidance:**
+>
+> The steps below apply only to older projects that are pinned to Visual Studio 2017
+> and `netcoreapp1.1`. Modern SDK-style projects do not need this setup — the code
+> coverage collectors ship with the .NET SDK. Prefer the `dotnet test --collect`
+> commands shown above unless you are constrained to this legacy tooling.
+
+Here's a sample project file, please note the xml entity marked as `Required`. Previously, the `Microsoft.VisualStudio.CodeCoverage` was required, but is now shipped with the SDK.
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp1.1</TargetFramework>
+
+    <!-- Required in both test/product projects. This is a temporary workaround for https://github.com/Microsoft/vstest/issues/800 -->
+    <DebugType>Full</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.3.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="1.1.17" />
+    <PackageReference Include="MSTest.TestFramework" Version="1.1.17" />
+  </ItemGroup>
+
+</Project>
+```
+
+To collect coverage for such a project with the standalone runner:
+
+```shell
+> "%vsinstalldir%\Common7\IDE\Extensions\TestPlatform\vstest.console.exe" --collect:"Code Coverage" --framework:".NETCoreApp,Version=v1.1" d:\testproject\bin\Debug\netcoreapp1.1\testproject.dll
+```
+
+This will generate a `*.coverage` file in the `<Current working directory>\TestResults` directory.
+
 ### Event Log Data Collector
 
 This document introduces Event Log DataCollector. We will start with a brief overview of Event Log DataCollector, use cases where it will be useful followed by steps to enable it.
