@@ -239,7 +239,7 @@ Examples of valid `TargetFrameworkVersion`:
 * .NETCoreApp, Version=v1.1
 * .NETFramework, Version=v4.5
 
-[FrameworkName]: https://msdn.microsoft.com/en-us/library/dd414023(v=vs.110).aspx
+[FrameworkName]: https://learn.microsoft.com/dotnet/standard/frameworks
 
 2. **Adapter settings**
 These settings are a hint to adapters to behave in a particular way. These are
