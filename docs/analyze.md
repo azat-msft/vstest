@@ -169,6 +169,10 @@ For complete command-line examples, package requirements, report generation, and
 
 ### Analyze coverage with Visual Studio
 
+> **Legacy version note:**
+>
+> If you are on older tooling, this feature requires [Visual Studio 2017 15.3.0](https://www.visualstudio.com/vs) or later. Current Visual Studio versions support it out of the box.
+
 Use the `Analyze Code Coverage` context menu available in the `Test Explorer` tool window to start a coverage run.
 
 After the coverage run is complete, a detailed report will be available in the `Code Coverage Results` tool window.
