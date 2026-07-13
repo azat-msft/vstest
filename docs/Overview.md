@@ -28,26 +28,26 @@
       - [Message](#message)
     - [Lifecycle Messages](#lifecycle-messages)
       - [ProtocolVersion request](#protocolversion-request)
-      - [TestSession.Message notification (Runner) (Testhost)](#testsessionmessage-notification-runner-testhost)
+      - [TestSession.Message notification - Runner/Testhost](#testsessionmessage-notification-runner-testhost)
     - [Session](#session)
-      - [Start Runner process request (Runner)](#start-runner-process-request-runner)
-      - [TestSession.Terminate request (Runner)](#testsessionterminate-request-runner)
-      - [Start Testhost process request (Runner)](#start-testhost-process-request-runner)
-      - [Terminate testhost request (Testhost)](#terminate-testhost-request-testhost)
+      - [Start Runner process request - Runner](#start-runner-process-request-runner)
+      - [TestSession.Terminate request - Runner](#testsessionterminate-request-runner)
+      - [Start Testhost process request - Runner](#start-testhost-process-request-runner)
+      - [Terminate testhost request - Testhost](#terminate-testhost-request-testhost)
     - [Discovery](#discovery)
-      - [Extensions.Initialize request (Runner)](#extensionsinitialize-request-runner)
-      - [TestDiscovery.Start request (Runner)](#testdiscoverystart-request-runner)
-      - [TestDiscovery.Initialize request (Testhost)](#testdiscoveryinitialize-request-testhost)
-      - [TestDiscovery.Start request (Testhost)](#testdiscoverystart-request-testhost)
-      - [TestDiscovery.TestFound notification (Testhost)](#testdiscoverytestfound-notification-testhost)
-      - [TestDiscovery.TestFound notification (Runner)](#testdiscoverytestfound-notification-runner)
+      - [Extensions.Initialize request - Runner](#extensionsinitialize-request-runner)
+      - [TestDiscovery.Start request - Runner](#testdiscoverystart-request-runner)
+      - [TestDiscovery.Initialize request - Testhost](#testdiscoveryinitialize-request-testhost)
+      - [TestDiscovery.Start request - Testhost](#testdiscoverystart-request-testhost)
+      - [TestDiscovery.TestFound notification - Testhost](#testdiscoverytestfound-notification-testhost)
+      - [TestDiscovery.TestFound notification - Runner](#testdiscoverytestfound-notification-runner)
     - [Run](#run)
-      - [TestExecution.GetTestRunnerProcessStartInfoForRunSelected request (Client)](#testexecutiongettestrunnerprocessstartinfoforrunselected-request-client)
-      - [TestExecution.Initialize request (Runner)](#testexecutioninitialize-request-runner)
-      - [TestExecution.StartWithTests (Runner)](#testexecutionstartwithtests-runner)
+      - [TestExecution.GetTestRunnerProcessStartInfoForRunSelected request - Client](#testexecutiongettestrunnerprocessstartinfoforrunselected-request-client)
+      - [TestExecution.Initialize request - Runner](#testexecutioninitialize-request-runner)
+      - [TestExecution.StartWithTests - Runner](#testexecutionstartwithtests-runner)
       - [TestExecution.StartWithSources](#testexecutionstartwithsources)
-      - [TestExecution.StatsChange notification (Runner)](#testexecutionstatschange-notification-runner)
-      - [TestExecution.StatsChange notification (Client)](#testexecutionstatschange-notification-client)
+      - [TestExecution.StatsChange notification - Runner](#testexecutionstatschange-notification-runner)
+      - [TestExecution.StatsChange notification - Client](#testexecutionstatschange-notification-client)
     - [Datacollection](#datacollection)
   - [Extensibility](#extensibility)
     - [DLL Extension points](#dll-extension-points)
@@ -70,7 +70,7 @@ TestPlatform is also known as vstest, or by the names of the tools that use it: 
 
 ## How it works?
 
-TestPlatform consists of multiple processes that communicate over sockets, by sending JSON serialized messages. There are 4 processes that usually work together run tests:
+TestPlatform consists of multiple components that communicate by sending JSON serialized messages. A classic VSTest run usually involves these processes:
 
 - Client
 - Runner
@@ -83,13 +83,13 @@ The runner receives the request from the client, and starts an appropriate testh
 
 Testhost receives the request to run tests, and runs them via an appropriate test framework. The most often used .NET test frameworks are XUnit, MSTest and NUnit.
 
-Datacollector observes the testhost to collect additional information about the run.
+Datacollector observes the testhost to collect additional information about the run when data collection is enabled.
+
+Microsoft.Testing.Platform (MTP) test applications are an emerging .NET 10 path. For those sources, the application hosts itself and TestPlatform drives discovery and execution over the MTP protocol instead of launching a VSTest testhost.
 
 While the tests execute, the results are reported back to the runner, aggregated, and forwarded to the client.
 
-The client processes the results and shows them in their UI, for example as TestExplorer does it here:
-
-<TODO gif>
+The client processes the results and shows them in its UI.
 
 A simplified flow describing the whole process is as follows:
 
@@ -138,8 +138,6 @@ The Run workflow described above is very common in command line tools, and proba
 ## Communication Protocol
 
 ### Base Protocol
-
-TODO: fill in more details.
 
 Data are passed as JSON serialized strings over TCP. The messages are serialized using binary format that delimits messages by a length prefix. The size prefix is written as 7 bit encoded int. (The basics of encoding that number are summarized here: <https://stackoverflow.com/a/49780224/3065397>).
 
@@ -228,8 +226,6 @@ There is no header in the message itself. There is header only in the binary mes
 
 TestPlatform protocol defines a set of JSON request, response and notification messages, that are exchanged using the above base protocol. This section starts by describing the basic JSON structures used in the protocol. The description uses C# classes, and types, with nullability enabled. Meaning that every type is non-nullable by default, and nullability is denoted by `?` following the type name.
 
-<TODO example?>
-
 The protocol assumes that one server serves one tool. There is no support in the protocol to share one server between different tools.
 
 #### Capabilities
@@ -248,7 +244,7 @@ The version is negotiated between the components at the beginning of every workf
 
 #### Request, Notification and Response Ordering
 
-The server supports processing only a single request at a time. Unless the request is [Cancel](#cancel) or [Abort](#abort) request.
+The server supports processing only a single request at a time, unless the request is a Cancel or Abort request.
 
 All notifications are sent before a response is sent.
 
@@ -257,9 +253,9 @@ All notifications are sent before a response is sent.
 TestPlatformProtocol is defined by a set of requests, responses and notifications. Each of those are described using the following format:
 
 - a header describing the request
-- a request section describing the format of the
-
-<TODO>
+- a request section describing the request payload format
+- a response section describing the response payload format, when the message has a response
+- examples of the JSON sent on the wire
 
 ### Basic structures
 
@@ -293,7 +289,7 @@ The version is determined by choosing the highest common supported version. When
 
 The receiving side should remember the agreed value, and use it as the highest supported version for any downstream component. In the case above runner should send 6 to testhost, even though the runner supports versions up to 7.
 
-The request was introduced in TestPlatform version `16.0.0`. Runners before this version are not allowed. Testhosts before this version are allowed, the version of testhost is figured out by scanning the assembly, and the request is not sent to them. Version 0 is used for communication.
+The current source defines `Version0` as the lowest supported protocol version and `Version7` as the highest supported protocol version.
 
 Versions:
 
@@ -302,7 +298,7 @@ Versions:
 - 2: Changed serialization from a generic bag that described each property and its type, to explicit properties that are serialized without additional type info.
 - 3: Added AttachDebugger message.
 - 4: Added because version 3 did not update the serialization to use, and it will use v1 serialization (bag) rather than explicit properties. Right side should avoid negotiating 3 and downgrade to 2.
-- 5: Unknown. (TODO)
+- 5: Reserved by the current source; no additional behavior is documented for this version.
 - 6: Added Abort and Cancel with handlers that report the status.
 - 7: Added SkippedDiscoveredSources.
 
@@ -616,7 +612,6 @@ public class DiscoveryCompletePayload
     public IList<string>? NotDiscoveredSources { get; set; } = new List<string>();
 
     // Gets or sets the collection of discovered extensions.
-    // TODO: since?
     public Dictionary<string, HashSet<string>>? DiscoveredExtensions { get; set; } = new();
 }
 ```
@@ -707,7 +702,7 @@ Contains full paths to one or more test sources, and settings to use for the dis
 ```csharp
 public class DiscoveryCriteria
 {
-    // Gets the test Containers (e.g. .appx, .appxrecipie) TODO what???
+    // Gets the test container package path (for example, an appx package).
     public string? Package { get; set; }
 
     
@@ -791,7 +786,6 @@ public class DiscoveryCompletePayload
     public IList<string>? NotDiscoveredSources { get; set; } = new List<string>();
 
     // Gets or sets the collection of discovered extensions.
-    // TODO: since?
     public Dictionary<string, HashSet<string>>? DiscoveredExtensions { get; set; } = new();
 }
 ```
@@ -1106,7 +1100,6 @@ public class TestRunCompleteEventArgs
     public Exception? Error { get; private set; }
 
     // Gets the attachment sets associated with the test run.
-    // TODO: HOW is this different from RunAttachments above?
     public Collection<AttachmentSet> AttachmentSets { get; private set; }
 
     // Gets the invoked data collectors for the test session.
@@ -1249,7 +1242,7 @@ public class TestExecutionContext
     // Gets or sets a value indicating whether testhost process should be kept running after test run completion.
     public bool KeepAlive { get; set; }
 
-    // Gets or sets a value indicating whether test case level events need to be sent or not. TODO: what is it? Is there since first commit, no usages on grep.app.
+    // Gets or sets a value indicating whether test case level events need to be sent or not.
     public bool AreTestCaseLevelEventsRequired { get; set; }
 
     // Gets or sets a value indicating whether execution is in debug mode.
@@ -1356,7 +1349,6 @@ public class TestRunCompleteEventArgs
     public Exception? Error { get; private set; }
 
     // Gets the attachment sets associated with the test run.
-    // TODO: HOW is this different from RunAttachments above?
     public Collection<AttachmentSet> AttachmentSets { get; private set; }
 
     // Gets the invoked data collectors for the test session.
@@ -1568,7 +1560,7 @@ public class TestRunCriteriaWithSources
 
 *Response:*
 
-See [TestExecution.StartWithTests (Runner)](#testexecutionstartwithtests-runner).
+See [TestExecution.StartWithTests - Runner](#testexecutionstartwithtests-runner).
 
 #### TestExecution.StatsChange notification (Runner)
 
@@ -1721,7 +1713,7 @@ public class TestRunChangedEventArgs : EventArgs
 
 #### TestExecution.StatsChange notification (Client)
 
-Same as above [TestExecution.StatsChange notification (Runner)](#testexecutionstatschange-notification-runner).
+Same as above [TestExecution.StatsChange notification - Runner](#testexecutionstatschange-notification-runner).
 
 ### Datacollection
 
@@ -1856,10 +1848,10 @@ Additional example of a toy test framework and adapter can be found in <https://
 
 ### TranslationLayer extension points
 
-TODO
+The TranslationLayer exposes client-facing APIs for tools that want to drive discovery,
+execution, session management, and attachment processing through TestPlatform without
+shelling out to `vstest.console.exe`.
 
 ### .NET Implementation
 
 #### Architecture
-
-
