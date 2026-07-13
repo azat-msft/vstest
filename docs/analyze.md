@@ -188,6 +188,10 @@ dotnet test --collect "Code Coverage"
 dotnet test --collect "XPlat Code Coverage"
 ```
 
+### Collect coverage in Azure Pipelines
+
+In Azure DevOps pipelines you can run tests and collect coverage with the Visual Studio Test task, which wraps `vstest.console.exe`. Enable coverage via the task's `codeCoverageEnabled` input (or pass `/collect:"Code Coverage"` through `otherConsoleOptions`). See [VSTest@2 - Visual Studio Test task](https://learn.microsoft.com/azure/devops/pipelines/tasks/reference/vstest-v2).
+
 Coverage attachments are written under the test run's `TestResults` directory.
 
 ### Setup a project (legacy: Visual Studio 2017 / netcoreapp1.1)
