@@ -28,26 +28,26 @@
       - [Message](#message)
     - [Lifecycle Messages](#lifecycle-messages)
       - [ProtocolVersion request](#protocolversion-request)
-      - [TestSession.Message notification - Runner/Testhost](#testsessionmessage-notification-runner-testhost)
+      - [TestSession.Message notification (Runner) (Testhost)](#testsessionmessage-notification-runner-testhost)
     - [Session](#session)
-      - [Start Runner process request - Runner](#start-runner-process-request-runner)
-      - [TestSession.Terminate request - Runner](#testsessionterminate-request-runner)
-      - [Start Testhost process request - Runner](#start-testhost-process-request-runner)
-      - [Terminate testhost request - Testhost](#terminate-testhost-request-testhost)
+      - [Start Runner process request (Runner)](#start-runner-process-request-runner)
+      - [TestSession.Terminate request (Runner)](#testsessionterminate-request-runner)
+      - [Start Testhost process request (Runner)](#start-testhost-process-request-runner)
+      - [Terminate testhost request (Testhost)](#terminate-testhost-request-testhost)
     - [Discovery](#discovery)
-      - [Extensions.Initialize request - Runner](#extensionsinitialize-request-runner)
-      - [TestDiscovery.Start request - Runner](#testdiscoverystart-request-runner)
-      - [TestDiscovery.Initialize request - Testhost](#testdiscoveryinitialize-request-testhost)
-      - [TestDiscovery.Start request - Testhost](#testdiscoverystart-request-testhost)
-      - [TestDiscovery.TestFound notification - Testhost](#testdiscoverytestfound-notification-testhost)
-      - [TestDiscovery.TestFound notification - Runner](#testdiscoverytestfound-notification-runner)
+      - [Extensions.Initialize request (Runner)](#extensionsinitialize-request-runner)
+      - [TestDiscovery.Start request (Runner)](#testdiscoverystart-request-runner)
+      - [TestDiscovery.Initialize request (Testhost)](#testdiscoveryinitialize-request-testhost)
+      - [TestDiscovery.Start request (Testhost)](#testdiscoverystart-request-testhost)
+      - [TestDiscovery.TestFound notification (Testhost)](#testdiscoverytestfound-notification-testhost)
+      - [TestDiscovery.TestFound notification (Runner)](#testdiscoverytestfound-notification-runner)
     - [Run](#run)
-      - [TestExecution.GetTestRunnerProcessStartInfoForRunSelected request - Client](#testexecutiongettestrunnerprocessstartinfoforrunselected-request-client)
-      - [TestExecution.Initialize request - Runner](#testexecutioninitialize-request-runner)
-      - [TestExecution.StartWithTests - Runner](#testexecutionstartwithtests-runner)
+      - [TestExecution.GetTestRunnerProcessStartInfoForRunSelected request (Client)](#testexecutiongettestrunnerprocessstartinfoforrunselected-request-client)
+      - [TestExecution.Initialize request (Runner)](#testexecutioninitialize-request-runner)
+      - [TestExecution.StartWithTests (Runner)](#testexecutionstartwithtests-runner)
       - [TestExecution.StartWithSources](#testexecutionstartwithsources)
-      - [TestExecution.StatsChange notification - Runner](#testexecutionstatschange-notification-runner)
-      - [TestExecution.StatsChange notification - Client](#testexecutionstatschange-notification-client)
+      - [TestExecution.StatsChange notification (Runner)](#testexecutionstatschange-notification-runner)
+      - [TestExecution.StatsChange notification (Client)](#testexecutionstatschange-notification-client)
     - [Datacollection](#datacollection)
   - [Extensibility](#extensibility)
     - [DLL Extension points](#dll-extension-points)
@@ -1099,7 +1099,7 @@ public class TestRunCompleteEventArgs
     // Error encountered in the run that is not linked to any test.
     public Exception? Error { get; private set; }
 
-    // Gets the attachment sets associated with the test run.
+    // Gets the attachment sets associated with the test run. Unlike RunAttachments on the enclosing payload (run-level files such as TRX reports), these are the per-run attachment sets collected during execution.
     public Collection<AttachmentSet> AttachmentSets { get; private set; }
 
     // Gets the invoked data collectors for the test session.
@@ -1348,7 +1348,7 @@ public class TestRunCompleteEventArgs
     // Error encountered in the run that is not linked to any test.
     public Exception? Error { get; private set; }
 
-    // Gets the attachment sets associated with the test run.
+    // Gets the attachment sets associated with the test run. Unlike RunAttachments on the enclosing payload (run-level files such as TRX reports), these are the per-run attachment sets collected during execution.
     public Collection<AttachmentSet> AttachmentSets { get; private set; }
 
     // Gets the invoked data collectors for the test session.
@@ -1560,7 +1560,7 @@ public class TestRunCriteriaWithSources
 
 *Response:*
 
-See [TestExecution.StartWithTests - Runner](#testexecutionstartwithtests-runner).
+See [TestExecution.StartWithTests (Runner)](#testexecutionstartwithtests-runner).
 
 #### TestExecution.StatsChange notification (Runner)
 
@@ -1713,7 +1713,7 @@ public class TestRunChangedEventArgs : EventArgs
 
 #### TestExecution.StatsChange notification (Client)
 
-Same as above [TestExecution.StatsChange notification - Runner](#testexecutionstatschange-notification-runner).
+Same as above [TestExecution.StatsChange notification (Runner)](#testexecutionstatschange-notification-runner).
 
 ### Datacollection
 
