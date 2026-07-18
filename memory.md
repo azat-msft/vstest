@@ -1,5 +1,5 @@
 # Efficiency Improver Memory — azat-msft/vstest
-Last updated: 2026-07-12
+Last updated: 2026-07-18
 
 ## Build/Test Commands (Validated)
 - **Build (Debug):** `./build.sh` — downloads pinned SDK to `.dotnet/` if needed
@@ -14,12 +14,11 @@ Last updated: 2026-07-12
 - `JsonElement.TryGetGuid()` / `TryGetDateTimeOffset()` available in NETCOREAPP — zero-allocation parse from JSON element
 - Monthly summary issue: created fresh each month in fork; check both fork and upstream
 - Upstream (microsoft/vstest) is AHEAD of fork (azat-msft/vstest); fork hasn't been synced since initial checkout
-- To identify real opportunities, check upstream files via GitHub API (not local checkout)
 - **Workflow reframed (2026-07-07, PR #16229):** NEW RULES — ≥15-20% improvement required; focus on fixed per-invocation overhead (startup, JIT, IPC handshake, discovery bootstrap); O(n²) always OK; max 1 PR per run; max 2 open PRs; MEDIUM items go to backlog only, never to PRs
 - `ConcurrentDictionary.GetOrAdd(key, value)` — value overload pre-computes the value BEFORE the cache lookup; always use the lambda/factory overload `GetOrAdd(key, _ => ...)` when the factory is expensive
 
 ## Open PRs
-- efficiency/fix-metadata-cache-getorAdd — PR created 2026-07-12 (awaiting PR number)
+- efficiency/fix-metadata-cache-getorAdd — PR created 2026-07-18 (awaiting merge/review)
 
 ## Closed/Merged PRs (Reference)
 - #16210 — MERGED 2026-07-09. Eliminated GetRawText() string allocation across 9 STJ deserializer converters
@@ -46,13 +45,13 @@ Last updated: 2026-07-12
 | LOW | ParallelOperationManager.cs:276,308,317 | Eager string.Join in EqtTrace.Verbose calls not guarded | <0.1ms/run | Bundle only |
 | LOW | AssemblyResolver.cs:52,69 | Eager string.Join in EqtTrace.Info | <0.1ms/run | Bundle only |
 
-**Current status (2026-07-12):** MetadataReaderHelper cache bug fixed (PR created). Next scan: PathConverter UWP path allocations, ProxyOperationManager unguarded interpolated EqtTrace calls.
+**Next scan suggestions:** Check TestPluginDiscoverer for other discovery-bootstrap hot paths; look for repeated LINQ allocations in extension loading.
 
 ## Tasks Last Run
-- Task 7 (Monthly summary): 2026-07-12 — to be updated this run
-- Task 2 (Identify opportunities): 2026-07-12 — found MetadataReaderHelper GetOrAdd bug (HIGH)
-- Task 3 (Implement improvement): 2026-07-12 — PR for MetadataReaderHelper fix
-- Task 4 (Maintain PRs): 2026-07-11 — confirmed no open efficiency PRs
+- Task 7 (Monthly summary): 2026-07-18 — new July issue created
+- Task 3 (Implement improvement): 2026-07-18 — PR for MetadataReaderHelper GetOrAdd fix
+- Task 2 (Identify opportunities): 2026-07-12 — found MetadataReaderHelper GetOrAdd bug (HIGH, now fixed)
+- Task 4 (Maintain PRs): 2026-07-18 — no open PRs before this run
 - Task 5 (Comment on issues): 2026-07-06 (stable)
 - Task 6 (Measurement infrastructure): 2026-07-09 — no new PR created
 - Task 1 (Discover commands): 2026-06-19 (stable)
