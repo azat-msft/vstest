@@ -1,5 +1,5 @@
 # Efficiency Improver Memory — azat-msft/vstest
-Last updated: 2026-07-25
+Last updated: 2026-08-01
 
 ## Build/Test Commands (Validated)
 - **Build (Debug):** `./build.sh` — downloads pinned SDK to `.dotnet/` if needed
@@ -43,7 +43,7 @@ None.
 | Priority | File | Opportunity | Est. Impact | Notes |
 |---|---|---|---|---|
 | MEDIUM | 6 IPC deserializer files | `GetRawText().Trim('"')` — fallback path for non-string JSON property values | marginal | Unclear if hot path in practice |
-| LOW | XmlRunSettingsUtilities.cs:46-51 | `ReaderSettings` property creates new `XmlReaderSettings` on every call. Should be `static readonly`. | <1% per call | Public API — mutability risk. 12 callers. |
+| MEDIUM | XmlRunSettingsUtilities.cs:46-51 | `ReaderSettings` property creates new `XmlReaderSettings` on every call. Should be `static readonly`. | ~16 small allocs per run | Public API — mutability risk. 16 callers confirmed. |
 | LOW | TestPluginCache.cs:90-101,150-151 | `string.Join` in `GetExtensionPaths`/`DiscoverTestExtensions` not guarded by `IsVerboseEnabled` | <0.1ms/run | Bundle with other unguarded trace calls |
 | LOW | ParallelOperationManager.cs:276,308,317 | Eager string.Join in EqtTrace.Verbose calls not guarded | <0.1ms/run | Bundle only |
 | LOW | AssemblyResolver.cs:52,69 | Eager string.Join in EqtTrace.Info | <0.1ms/run | Bundle only |
@@ -52,9 +52,9 @@ None.
 **Next scan suggestions:** Look at the IPC handshake message flow for any round-trips that could be eliminated; check if there are unnecessary assembly loads during startup; explore lazy initialization in TestLoggerManager and TestExtensionManager.
 
 ## Tasks Last Run
-- Task 7 (Monthly summary): 2026-07-25 — new July issue created
-- Task 2 (Identify opportunities): 2026-07-25 — no new HIGH found; added TestPluginCache trace call notes
-- Task 4 (Maintain PRs): 2026-07-25 — no open PRs
+- Task 7 (Monthly summary): 2026-08-01 — new August 2026 issue created
+- Task 2 (Identify opportunities): 2026-08-01 — scanned IPC, TestRunCache, DiscoveryResultCache, regex, EqtTrace; no new HIGH found; upgraded XmlReaderSettings to MEDIUM
+- Task 4 (Maintain PRs): 2026-08-01 — no open PRs
 - Task 3 (Implement improvement): 2026-07-18 — PR for MetadataReaderHelper GetOrAdd fix (now closed)
 - Task 5 (Comment on issues): 2026-07-06 (stable)
 - Task 6 (Measurement infrastructure): 2026-07-09 — no new PR created
