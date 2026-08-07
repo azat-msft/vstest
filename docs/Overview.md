@@ -141,7 +141,7 @@ The Run workflow described above is very common in command line tools, and proba
 
 TODO: fill in more details.
 
-Data are passed as JSON serialized strings over TCP. The messages are serialized using binary format that delimits messages by a length prefix. The size prefix is written as 7 bit encoded int. (The basics of encoding that number are summarized here: <https://stackoverflow.com/a/49780224/3065397>).
+Data are passed as JSON serialized strings over TCP. The messages are serialized using binary format that delimits messages by a length prefix. The size prefix is written as 7 bit encoded int. (The basics of encoding that number are summarized in the [BinaryReader.Read7BitEncodedInt](https://learn.microsoft.com/en-us/dotnet/api/system.io.binaryreader.read7bitencodedint) documentation).
 
 In .NET the data are written using BinaryWriter and BinaryReader which do all the needed conversions automatically when writing and reading the string (<https://learn.microsoft.com/en-us/dotnet/api/system.io.binarywriter.write?view=net-6.0#system-io-binarywriter-write(system-string>)).
 
