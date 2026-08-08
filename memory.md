@@ -1,5 +1,5 @@
 # Efficiency Improver Memory — azat-msft/vstest
-Last updated: 2026-08-01
+Last updated: 2026-08-08
 
 ## Build/Test Commands (Validated)
 - **Build (Debug):** `./build.sh` — downloads pinned SDK to `.dotnet/` if needed
@@ -42,6 +42,7 @@ None.
 ## Optimisation Backlog (under new HIGH-impact rules)
 | Priority | File | Opportunity | Est. Impact | Notes |
 |---|---|---|---|---|
+| MEDIUM | TestRequestManager.cs:576-584 | `UpdateRunSettingsIfRequired` parses runsettings XML 3× per run (XmlDocument.Load + GetRunConfigurationNode + GetLoggerRunSettings) — could reuse the already-loaded XmlDocument | ~2-5ms per run |
 | MEDIUM | 6 IPC deserializer files | `GetRawText().Trim('"')` — fallback path for non-string JSON property values | marginal | Unclear if hot path in practice |
 | MEDIUM | XmlRunSettingsUtilities.cs:46-51 | `ReaderSettings` property creates new `XmlReaderSettings` on every call. Should be `static readonly`. | ~16 small allocs per run | Public API — mutability risk. 16 callers confirmed. |
 | LOW | TestPluginCache.cs:90-101,150-151 | `string.Join` in `GetExtensionPaths`/`DiscoverTestExtensions` not guarded by `IsVerboseEnabled` | <0.1ms/run | Bundle with other unguarded trace calls |
@@ -52,9 +53,9 @@ None.
 **Next scan suggestions:** Look at the IPC handshake message flow for any round-trips that could be eliminated; check if there are unnecessary assembly loads during startup; explore lazy initialization in TestLoggerManager and TestExtensionManager.
 
 ## Tasks Last Run
-- Task 7 (Monthly summary): 2026-08-01 — new August 2026 issue created
-- Task 2 (Identify opportunities): 2026-08-01 — scanned IPC, TestRunCache, DiscoveryResultCache, regex, EqtTrace; no new HIGH found; upgraded XmlReaderSettings to MEDIUM
-- Task 4 (Maintain PRs): 2026-08-01 — no open PRs
+- Task 7 (Monthly summary): 2026-08-08 — new August 2026 issue created
+- Task 2 (Identify opportunities): 2026-08-08 — scanned IPC handshake, TestPluginDiscoverer, TestExtensionManager, TestRunCache; found new MEDIUM (3× XML parse in UpdateRunSettingsIfRequired)
+- Task 4 (Maintain PRs): 2026-08-08 — no open PRs
 - Task 3 (Implement improvement): 2026-07-18 — PR for MetadataReaderHelper GetOrAdd fix (now closed)
 - Task 5 (Comment on issues): 2026-07-06 (stable)
 - Task 6 (Measurement infrastructure): 2026-07-09 — no new PR created
