@@ -1,5 +1,5 @@
 # Efficiency Improver Memory — azat-msft/vstest
-Last updated: 2026-08-08
+Last updated: 2026-08-15
 
 ## Build/Test Commands (Validated)
 - **Build (Debug):** `./build.sh` — downloads pinned SDK to `.dotnet/` if needed
@@ -17,6 +17,7 @@ Last updated: 2026-08-08
 - **Workflow reframed (2026-07-07, PR #16229):** NEW RULES — ≥15-20% improvement required; focus on fixed per-invocation overhead (startup, JIT, IPC handshake, discovery bootstrap); O(n²) always OK; max 1 PR per run; max 2 open PRs; MEDIUM items go to backlog only, never to PRs
 - `ConcurrentDictionary.GetOrAdd(key, value)` — value overload pre-computes the value BEFORE the cache lookup; always use the lambda/factory overload `GetOrAdd(key, _ => ...)` when the factory is expensive
 - `EqtTrace.Verbose(format, args)` evaluates `params object[]` args BEFORE checking if verbose is enabled; use `if (EqtTrace.IsVerboseEnabled)` guard when args include `string.Join` or similar allocations
+- `LogExtensions()` in TestPluginCache.cs already guarded by `if (!EqtTrace.IsVerboseEnabled) return;`
 
 ## Open PRs
 None.
@@ -45,18 +46,20 @@ None.
 | MEDIUM | TestRequestManager.cs:576-584 | `UpdateRunSettingsIfRequired` parses runsettings XML 3× per run (XmlDocument.Load + GetRunConfigurationNode + GetLoggerRunSettings) — could reuse the already-loaded XmlDocument | ~2-5ms per run |
 | MEDIUM | 6 IPC deserializer files | `GetRawText().Trim('"')` — fallback path for non-string JSON property values | marginal | Unclear if hot path in practice |
 | MEDIUM | XmlRunSettingsUtilities.cs:46-51 | `ReaderSettings` property creates new `XmlReaderSettings` on every call. Should be `static readonly`. | ~16 small allocs per run | Public API — mutability risk. 16 callers confirmed. |
+| MEDIUM | TestObjectBaseConverter.cs:~78 | `GetRawText().Trim('"')` fallback for non-string property values in test object property bag deserialization | cold path | Only fires for non-string property values |
+| MEDIUM | TestProperty.cs:255-276 | `Properties` dictionary uses explicit `lock` — ConcurrentDictionary would avoid lock per TestProperty lookup during deserialization | per-test × 8 properties | At N=1 test, impact is negligible. Scales with N. |
 | LOW | TestPluginCache.cs:90-101,150-151 | `string.Join` in `GetExtensionPaths`/`DiscoverTestExtensions` not guarded by `IsVerboseEnabled` | <0.1ms/run | Bundle with other unguarded trace calls |
 | LOW | ParallelOperationManager.cs:276,308,317 | Eager string.Join in EqtTrace.Verbose calls not guarded | <0.1ms/run | Bundle only |
 | LOW | AssemblyResolver.cs:52,69 | Eager string.Join in EqtTrace.Info | <0.1ms/run | Bundle only |
 | LOW | TestPluginCache.cs:416 | `additionalExtensions.All(extensionsList.Contains)` is O(n×m) but N is tiny (5-20) | negligible | O(n²) technically, but N too small to matter |
 
-**Next scan suggestions:** Look at the IPC handshake message flow for any round-trips that could be eliminated; check if there are unnecessary assembly loads during startup; explore lazy initialization in TestLoggerManager and TestExtensionManager.
+**Next scan suggestions:** Look at TestCaseConverterV2/TestResultConverterV2 for per-test deserialization hot spots; examine assembly loading during testhost startup; look for repeated expensive operations in DataCollectionRequestHandler startup.
 
 ## Tasks Last Run
-- Task 7 (Monthly summary): 2026-08-08 — new August 2026 issue created
-- Task 2 (Identify opportunities): 2026-08-08 — scanned IPC handshake, TestPluginDiscoverer, TestExtensionManager, TestRunCache; found new MEDIUM (3× XML parse in UpdateRunSettingsIfRequired)
+- Task 7 (Monthly summary): 2026-08-15 — new August 2026 issue created (no open issue found)
+- Task 2 (Identify opportunities): 2026-08-15 — scanned TestProperty, TestObjectBaseConverter, JsonDataSerializer, LengthPrefixCommunicationChannel, TestRequestManager, XmlRunSettingsUtilities; found no new HIGH items
 - Task 4 (Maintain PRs): 2026-08-08 — no open PRs
-- Task 3 (Implement improvement): 2026-07-18 — PR for MetadataReaderHelper GetOrAdd fix (now closed)
+- Task 3 (Implement improvement): 2026-07-18 — no HIGH items in backlog; skip
 - Task 5 (Comment on issues): 2026-07-06 (stable)
 - Task 6 (Measurement infrastructure): 2026-07-09 — no new PR created
 - Task 1 (Discover commands): 2026-06-19 (stable)
