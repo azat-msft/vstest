@@ -1,5 +1,5 @@
 # Efficiency Improver Memory — azat-msft/vstest
-Last updated: 2026-08-15
+Last updated: 2026-08-22
 
 ## Build/Test Commands (Validated)
 - **Build (Debug):** `./build.sh` — downloads pinned SDK to `.dotnet/` if needed
@@ -18,6 +18,10 @@ Last updated: 2026-08-15
 - `ConcurrentDictionary.GetOrAdd(key, value)` — value overload pre-computes the value BEFORE the cache lookup; always use the lambda/factory overload `GetOrAdd(key, _ => ...)` when the factory is expensive
 - `EqtTrace.Verbose(format, args)` evaluates `params object[]` args BEFORE checking if verbose is enabled; use `if (EqtTrace.IsVerboseEnabled)` guard when args include `string.Join` or similar allocations
 - `LogExtensions()` in TestPluginCache.cs already guarded by `if (!EqtTrace.IsVerboseEnabled) return;`
+- TestPluginCache.GetExtensionPaths lines 91/97/101: EqtTrace.Verbose calls with string.Join NOT guarded — LOW priority
+- LengthPrefixCommunicationChannel: already well-optimized (buffered writes, BinaryWriter/UTF8)
+- TestCaseConverterV2: only 1 GetRawText() remaining (cold path fallback at line 64)
+- XmlPersistence.cs:682-683: static Regex.Replace with local pattern string — uses internal cache (15-entry), acceptable
 
 ## Open PRs
 None.
@@ -53,11 +57,11 @@ None.
 | LOW | AssemblyResolver.cs:52,69 | Eager string.Join in EqtTrace.Info | <0.1ms/run | Bundle only |
 | LOW | TestPluginCache.cs:416 | `additionalExtensions.All(extensionsList.Contains)` is O(n×m) but N is tiny (5-20) | negligible | O(n²) technically, but N too small to matter |
 
-**Next scan suggestions:** Look at TestCaseConverterV2/TestResultConverterV2 for per-test deserialization hot spots; examine assembly loading during testhost startup; look for repeated expensive operations in DataCollectionRequestHandler startup.
+**Next scan suggestions:** Look at testhost startup assembly loading (PlatformAssemblyResolver, DefaultEngineInvoker); examine TestAdapterPathArgumentProcessor for per-path overhead; look at repeated attribute reflection in test discovery.
 
 ## Tasks Last Run
-- Task 7 (Monthly summary): 2026-08-15 — new August 2026 issue created (no open issue found)
-- Task 2 (Identify opportunities): 2026-08-15 — scanned TestProperty, TestObjectBaseConverter, JsonDataSerializer, LengthPrefixCommunicationChannel, TestRequestManager, XmlRunSettingsUtilities; found no new HIGH items
+- Task 7 (Monthly summary): 2026-08-22 — new August 2026 issue created
+- Task 2 (Identify opportunities): 2026-08-22 — scanned DataCollectionRequestHandler, TestPluginCache, TestRequestManager, XmlRunSettingsUtilities, LengthPrefixCommunicationChannel, TestCaseConverterV2; no new HIGH items
 - Task 4 (Maintain PRs): 2026-08-08 — no open PRs
 - Task 3 (Implement improvement): 2026-07-18 — no HIGH items in backlog; skip
 - Task 5 (Comment on issues): 2026-07-06 (stable)
