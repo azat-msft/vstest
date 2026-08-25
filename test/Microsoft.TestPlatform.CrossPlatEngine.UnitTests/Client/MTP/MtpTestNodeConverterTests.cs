@@ -137,6 +137,70 @@ public class MtpTestNodeConverterTests
     /// With no managed location and no bridge property there is nothing to build a name from, so the
     /// uid stands. An invented name would be worse than an opaque but truthful one.
     /// </summary>
+    /// <summary>
+    /// MTP reports one node per data row, and every data row of a method shares its location.type and
+    /// location.method (parameter types included), so the derived fully qualified name is identical
+    /// across them. TestCase.Id defaults to a hash of ExecutorUri + source + that name, so without an
+    /// explicit identity all rows of a method collapse onto a single Id - which merged them into one
+    /// TRX entry and cross-wired per-test-case data collector correlation. The uid is the only
+    /// per-node-unique value the server issues, so identity must come from it.
+    /// </summary>
+    [TestMethod]
+    public void ToTestCaseGivesNodesSharingAManagedLocationDistinctIds()
+    {
+        MtpTestNodeUpdate FirstRow() => RawNode(new Dictionary<string, object?>
+        {
+            ["uid"] = "row-1",
+            ["display-name"] = "RowTest (1)",
+            ["node-type"] = "action",
+            ["location.type"] = "My.Tests.UnitTests",
+            ["location.method"] = "RowTest(System.Int32)",
+        });
+
+        MtpTestNodeUpdate SecondRow() => RawNode(new Dictionary<string, object?>
+        {
+            ["uid"] = "row-2",
+            ["display-name"] = "RowTest (2)",
+            ["node-type"] = "action",
+            ["location.type"] = "My.Tests.UnitTests",
+            ["location.method"] = "RowTest(System.Int32)",
+        });
+
+        TestCase first = MtpTestNodeConverter.ToTestCase(FirstRow(), Source);
+        TestCase second = MtpTestNodeConverter.ToTestCase(SecondRow(), Source);
+
+        Assert.AreEqual(
+            first.FullyQualifiedName,
+            second.FullyQualifiedName,
+            "Precondition: data rows of one method share a fully qualified name, which is why identity cannot come from it.");
+        Assert.AreNotEqual(first.Id, second.Id, "Data rows of one method must not collapse onto a single test case id.");
+    }
+
+    /// <summary>
+    /// The same node must convert to the same identity every time, or results would fail to correlate
+    /// with the test cases discovered for them.
+    /// </summary>
+    [TestMethod]
+    public void ToTestCaseGivesTheSameNodeAStableId()
+    {
+        TestCase first = MtpTestNodeConverter.ToTestCase(Node(), Source);
+        TestCase second = MtpTestNodeConverter.ToTestCase(Node(), Source);
+
+        Assert.AreEqual(first.Id, second.Id);
+    }
+
+    /// <summary>
+    /// The same test node uid reported from two different applications must not share an identity.
+    /// </summary>
+    [TestMethod]
+    public void ToTestCaseGivesTheSameUidInDifferentSourcesDistinctIds()
+    {
+        TestCase first = MtpTestNodeConverter.ToTestCase(Node(), Source);
+        TestCase second = MtpTestNodeConverter.ToTestCase(Node(), @"C:\tests\OtherApp.dll");
+
+        Assert.AreNotEqual(first.Id, second.Id);
+    }
+
     [TestMethod]
     public void ToTestCaseUsesUidAsFullyQualifiedNameWhenBridgePropertiesAbsent()
     {

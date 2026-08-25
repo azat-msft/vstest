@@ -28,19 +28,24 @@ internal static class MtpSourceDiscoverer
     /// <param name="source">The MTP application to discover.</param>
     /// <param name="logHandler">Receives the log messages produced by the MTP application.</param>
     /// <param name="cancellationToken">Cancels the discovery pass.</param>
-    /// <remarks>
-    /// The application is launched with no extra environment variables: discovery must not be run under
-    /// an execution-only data collector's profiler variables, which are injected into the run launch
-    /// only.
-    /// </remarks>
+    /// <param name="environmentVariables">
+    /// Environment variables to apply to the discovery launch. Callers pass the user's runsettings
+    /// <c>RunConfiguration/EnvironmentVariables</c>, because enumeration can legitimately depend on
+    /// them (a config-driven data source, a feature switch), and discovering under a different
+    /// environment than the one the user declared enumerates a different set of tests. Data-collector
+    /// profiler variables are deliberately NOT passed: discovery is not the run, it is never
+    /// registered with the collector via TestHostLaunched, and instrumenting it would attribute
+    /// coverage to a process that executed no tests.
+    /// </param>
     public static List<TestCase> Discover(
         string source,
         Action<TestMessageLevel, string?> logHandler,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IDictionary<string, string?>? environmentVariables = null)
     {
         var discovered = new List<TestCase>();
 
-        MtpServerClientOptions options = MtpClientOptionsFactory.CreateOptions();
+        MtpServerClientOptions options = MtpClientOptionsFactory.CreateOptions(environmentVariables);
         using IMtpServerClient client = MtpServerClientFactory.Launch(source, options);
         client.LogReceived += (_, e) => logHandler(MtpClientOptionsFactory.MapServerLogLevel(e.Level), e.Message);
         client.TestNodesUpdated += (_, e) =>

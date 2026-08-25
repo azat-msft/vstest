@@ -52,6 +52,14 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
 
     private bool _isInitialized;
 
+    /// <summary>
+    /// The environment variables declared in the runsettings
+    /// <c>RunConfiguration/EnvironmentVariables</c>, kept apart from <see cref="EnvironmentVariables"/>
+    /// (which also accumulates the data collector's profiler variables) so the pre-run discovery pass
+    /// can be launched with the user's variables but without the profiler's.
+    /// </summary>
+    private IDictionary<string, string?>? _runSettingsEnvironmentVariables;
+
     public MtpProxyExecutionManager()
     {
     }
@@ -92,32 +100,30 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
         // top and win on collision (matching the classic ordering).
         ApplyRunSettingsEnvironmentVariables(testRunCriteria.TestRunSettings);
 
-        BeforeTestRun(eventHandler);
-
-        // A /TestCaseFilter run arrives as sources with no specific tests. MTP addresses tests by node
-        // uid and has no notion of the vstest filter expression, so the filter is resolved here: the
-        // source is discovered, the expression is evaluated against the discovered test cases, and only
-        // the matching uids are run. Built once for the whole run rather than per source so an invalid
-        // expression is reported once.
-        TestCaseFilterExpression? filterExpression = null;
-        IEnumerable<(string Source, List<TestCase>? Tests)> work = BuildWork(testRunCriteria);
-        if (!testRunCriteria.HasSpecificTests && !testRunCriteria.TestCaseFilter.IsNullOrEmpty())
+        // Resolve the work list before the data collector session opens. A /TestCaseFilter run arrives
+        // as sources with no specific tests, and MTP addresses tests by node uid and has no notion of
+        // the vstest filter expression, so the filter is resolved here: each source is discovered, the
+        // expression is evaluated against the discovered test cases, and only the matching uids are
+        // run. Doing it before BeforeTestRun keeps the discovery launches outside the collector's
+        // session window, so a slow discovery does not eat into a Blame hang-dump budget the user sized
+        // for execution, and no collector ever sees a process that runs no tests.
+        List<(string Source, List<TestCase>? Tests)> work;
+        try
         {
-            try
-            {
-                filterExpression = MtpTestCaseFilter.CreateExpression(testRunCriteria.TestCaseFilter, testRunCriteria.FilterOptions);
-            }
-            catch (Exception ex)
-            {
-                EqtTrace.Error("MtpProxyExecutionManager.StartTestRun: invalid test case filter: {0}", ex);
-                eventHandler.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Error, ex.Message);
-
-                // No source may run: an unusable filter must degrade to running nothing, never to
-                // running everything.
-                work = [];
-                aborted = true;
-            }
+            work = ResolveWork(testRunCriteria, eventHandler);
         }
+        catch (Exception ex)
+        {
+            EqtTrace.Error("MtpProxyExecutionManager.StartTestRun: could not resolve the tests to run: {0}", ex);
+            eventHandler.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Error, ex.Message);
+
+            // An unusable filter, or a failed discovery, must degrade to running nothing - never to
+            // running everything, which is the silent wrong answer this path exists to remove.
+            work = [];
+            aborted = true;
+        }
+
+        BeforeTestRun(eventHandler);
 
         foreach (var (source, tests) in work)
         {
@@ -128,26 +134,7 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
 
             try
             {
-                List<TestCase>? testsToRun = tests;
-                if (filterExpression is not null)
-                {
-                    testsToRun = MtpTestCaseFilter.Filter(
-                        MtpSourceDiscoverer.Discover(source, eventHandler.HandleLogMessage, _cancellationTokenSource.Token),
-                        filterExpression);
-
-                    if (testsToRun.Count == 0)
-                    {
-                        // Skip the source entirely. RunSource cannot express "run zero tests": it sends
-                        // the uid filter only when the list has entries and otherwise omits it, which the
-                        // server reads as "run every test". Calling it with an empty list would therefore
-                        // turn "the filter matched nothing" into "run the whole suite", which is the bug
-                        // this exists to fix.
-                        WarnNoTestsMatchedFilter(eventHandler, testRunCriteria.TestCaseFilter!, source);
-                        continue;
-                    }
-                }
-
-                processId = RunSource(source, testsToRun, eventHandler, aggregate, attachments, executorUris);
+                processId = RunSource(source, tests, eventHandler, aggregate, attachments, executorUris);
             }
             catch (OperationCanceledException)
             {
@@ -449,6 +436,56 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
         return processId;
     }
 
+    /// <summary>
+    /// Builds the list of sources to run and, for each, the tests to run within it.
+    ///
+    /// Without a filter this is just the criteria's sources (a null test list means "run everything in
+    /// the source"). With a <c>/TestCaseFilter</c> each source is discovered and the expression is
+    /// evaluated against the discovered test cases, so the run addresses exactly the matching node uids.
+    /// A source whose filter matches nothing is omitted entirely rather than being included with an
+    /// empty list: <see cref="RunSource"/> sends the uid filter only when the list has entries and
+    /// otherwise omits it, which the server reads as "run every test", so an empty list would turn
+    /// "matched nothing" into "ran the whole suite".
+    /// </summary>
+    private List<(string Source, List<TestCase>? Tests)> ResolveWork(TestRunCriteria criteria, IInternalTestRunEventsHandler eventHandler)
+    {
+        if (criteria.HasSpecificTests || criteria.TestCaseFilter.IsNullOrEmpty())
+        {
+            return BuildWork(criteria).ToList();
+        }
+
+        // Parsed once for the whole run rather than per source, so an unusable expression is reported
+        // once and before any application is launched.
+        TestCaseFilterExpression filterExpression = MtpTestCaseFilter.CreateExpression(criteria.TestCaseFilter, criteria.FilterOptions);
+
+        var work = new List<(string Source, List<TestCase>? Tests)>();
+        foreach (var (source, _) in BuildWork(criteria))
+        {
+            if (_cancellationTokenSource.IsCancellationRequested)
+            {
+                break;
+            }
+
+            List<TestCase> matched = MtpTestCaseFilter.Filter(
+                MtpSourceDiscoverer.Discover(
+                    source,
+                    eventHandler.HandleLogMessage,
+                    _cancellationTokenSource.Token,
+                    _runSettingsEnvironmentVariables),
+                filterExpression);
+
+            if (matched.Count == 0)
+            {
+                WarnNoTestsMatchedFilter(eventHandler, criteria.TestCaseFilter, source);
+                continue;
+            }
+
+            work.Add((source, matched));
+        }
+
+        return work;
+    }
+
     private static IEnumerable<(string Source, List<TestCase>? Tests)> BuildWork(TestRunCriteria criteria)
     {
         if (criteria.HasSpecificTests && criteria.Tests is not null)
@@ -478,7 +515,9 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
     /// <summary>
     /// Reads the environment variables declared in the runsettings
     /// <c>RunConfiguration/EnvironmentVariables</c> and merges them into <see cref="EnvironmentVariables"/>
-    /// so they are applied to the MTP application launch.
+    /// so they are applied to the MTP application launch. They are also retained separately, so the
+    /// pre-run discovery pass of a filtered run can enumerate under the same environment the user
+    /// declared - enumeration can legitimately depend on it.
     /// </summary>
     private void ApplyRunSettingsEnvironmentVariables(string? runSettings)
     {
@@ -487,6 +526,8 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
         {
             return;
         }
+
+        _runSettingsEnvironmentVariables = runSettingsEnvironmentVariables;
 
         EnvironmentVariables ??= CreateEnvironmentVariablesDictionary();
         foreach (KeyValuePair<string, string?> variable in runSettingsEnvironmentVariables)

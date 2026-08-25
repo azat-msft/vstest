@@ -7,6 +7,7 @@ using System.Globalization;
 
 using Microsoft.Testing.Platform.ServerMode.Client;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
+using Microsoft.VisualStudio.TestPlatform.ObjectModel.Utilities;
 
 namespace Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.Client.MTP;
 
@@ -83,6 +84,15 @@ internal static class MtpTestNodeConverter
         if (uid is { Length: > 0 })
         {
             testCase.SetPropertyValue(MtpUidProperty, uid);
+
+            // Pin the identity to the node uid, which is the only per-node-unique value the server
+            // issues. TestCase.Id otherwise defaults to a hash of ExecutorUri + source + the fully
+            // qualified name, and that name is NOT unique here: MTP reports one node per data row, and
+            // every data row of a method shares its location.type and location.method (parameter types
+            // included), so all of them would hash to a single Id. Colliding ids merge the rows into
+            // one TRX entry and cross-wire the per-test-case data collector correlation, which is how
+            // two data rows silently became one test.
+            testCase.Id = EqtHash.GuidFromString(source + uid);
         }
 
         string? file = GetRawString(update, LocationFileKey);

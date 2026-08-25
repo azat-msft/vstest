@@ -94,8 +94,9 @@ internal static class MtpTestCaseFilter
                 properties[key] = values;
             }
 
-            // A predefined member can also appear in the property store (e.g. a round-tripped test
-            // case), and adding it twice would turn a single value into a two-element array.
+            // A predefined member is enumerated by TestCase.Properties AND added explicitly below, so
+            // this dedupe runs on every call, not just for a round-tripped test case. Removing it turns
+            // single values into two-element arrays and silently changes `=` semantics.
             if (!values.Contains(value, StringComparer.Ordinal))
             {
                 values.Add(value);
@@ -130,10 +131,14 @@ internal static class MtpTestCaseFilter
             }
         }
 
-        // The predefined TestCase members (FullyQualifiedName, DisplayName, Source, ...) live in fields
-        // rather than in the property store, so the loop above never sees them; they are added here.
-        // "Name" is how vstest labels DisplayName, and "DisplayName" is how filters conventionally spell
-        // it, so both are exposed.
+        // TestCase.Properties is overridden to concatenate the predefined TestCaseProperties
+        // (FullyQualifiedName, DisplayName, Source, CodeFilePath, Id, LineNumber, ExecutorUri) onto the
+        // property store, so the loop above already enumerated them and GetPropertyValue routed them to
+        // the backing fields. The adds below are therefore mostly re-adds, and the dedupe inside Add is
+        // what keeps them harmless: without it Source, FullyQualifiedName and Name would each become a
+        // two-element array, which changes the semantics of `=` from equality to "any value equals".
+        // Only the DisplayName alias is genuinely new (vstest labels that property "Name"), but the
+        // rest are kept explicitly so the provider stays correct if that override ever narrows.
         Add(FullyQualifiedNameLabel, testCase.FullyQualifiedName);
         Add(NameLabel, testCase.DisplayName);
         Add(DisplayNameLabel, testCase.DisplayName);
