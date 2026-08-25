@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-using Microsoft.Testing.Platform.ServerMode.Client;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Client;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Engine;
@@ -83,44 +82,7 @@ internal sealed class MtpProxyDiscoveryManager : IProxyDiscoveryManager, IDispos
 
     private int DiscoverSource(string source, ITestDiscoveryEventsHandler2 eventHandler)
     {
-        var discovered = new List<TestCase>();
-
-        MtpServerClientOptions options = MtpClientOptionsFactory.CreateOptions();
-        using IMtpServerClient client = MtpServerClientFactory.Launch(source, options);
-        client.LogReceived += (_, e) => eventHandler.HandleLogMessage(MtpClientOptionsFactory.MapServerLogLevel(e.Level), e.Message);
-        client.TestNodesUpdated += (_, e) =>
-        {
-            foreach (MtpTestNodeUpdate change in e.Changes)
-            {
-                if (MtpTestNodeConverter.IsActionNode(change))
-                {
-                    lock (discovered)
-                    {
-                        discovered.Add(MtpTestNodeConverter.ToTestCase(change, source));
-                    }
-                }
-            }
-        };
-
-        try
-        {
-            client.InitializeAsync(_cancellationTokenSource.Token).GetAwaiter().GetResult();
-
-            // Awaiting the discover request is sufficient: server-to-client messages arrive on a single
-            // ordered stream that the client reads sequentially and dispatches synchronously, so every
-            // node notification has already been delivered by the time the request completes.
-            client.DiscoverTestsAsync(_cancellationTokenSource.Token).GetAwaiter().GetResult();
-        }
-        finally
-        {
-            MtpServerClientFactory.TryExit(client);
-        }
-
-        List<TestCase> chunk;
-        lock (discovered)
-        {
-            chunk = discovered.ToList();
-        }
+        List<TestCase> chunk = MtpSourceDiscoverer.Discover(source, eventHandler.HandleLogMessage, _cancellationTokenSource.Token);
 
         if (chunk.Count > 0)
         {

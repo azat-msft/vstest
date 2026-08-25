@@ -11,9 +11,11 @@ using System.Threading;
 
 using Microsoft.Testing.Platform.ServerMode.Client;
 
+using Microsoft.VisualStudio.TestPlatform.Common.Filtering;
 using Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.Client;
 using Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.DataCollection;
 using Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.DataCollection.Interfaces;
+using Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.Utilities;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Client;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Engine;
@@ -92,16 +94,59 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
 
         BeforeTestRun(eventHandler);
 
+        // A /TestCaseFilter run arrives as sources with no specific tests. MTP addresses tests by node
+        // uid and has no notion of the vstest filter expression, so the filter is resolved here: the
+        // source is discovered, the expression is evaluated against the discovered test cases, and only
+        // the matching uids are run. Built once for the whole run rather than per source so an invalid
+        // expression is reported once.
+        TestCaseFilterExpression? filterExpression = null;
+        bool filterIsUnusable = false;
+        if (!testRunCriteria.HasSpecificTests && !testRunCriteria.TestCaseFilter.IsNullOrEmpty())
+        {
+            try
+            {
+                filterExpression = MtpTestCaseFilter.CreateExpression(testRunCriteria.TestCaseFilter, testRunCriteria.FilterOptions);
+            }
+            catch (Exception ex)
+            {
+                EqtTrace.Error("MtpProxyExecutionManager.StartTestRun: invalid test case filter: {0}", ex);
+                eventHandler.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Error, ex.Message);
+
+                // No source may run: an unusable filter must not degrade into running everything.
+                filterIsUnusable = true;
+                aborted = true;
+            }
+        }
+
         foreach (var (source, tests) in BuildWork(testRunCriteria))
         {
-            if (_cancellationTokenSource.IsCancellationRequested)
+            if (filterIsUnusable || _cancellationTokenSource.IsCancellationRequested)
             {
                 break;
             }
 
             try
             {
-                processId = RunSource(source, tests, eventHandler, aggregate, attachments, executorUris);
+                List<TestCase>? testsToRun = tests;
+                if (filterExpression is not null)
+                {
+                    testsToRun = MtpTestCaseFilter.Filter(
+                        MtpSourceDiscoverer.Discover(source, eventHandler.HandleLogMessage, _cancellationTokenSource.Token),
+                        filterExpression);
+
+                    if (testsToRun.Count == 0)
+                    {
+                        // Skip the source entirely. RunSource cannot express "run zero tests": it sends
+                        // the uid filter only when the list has entries and otherwise omits it, which the
+                        // server reads as "run every test". Calling it with an empty list would therefore
+                        // turn "the filter matched nothing" into "run the whole suite", which is the bug
+                        // this exists to fix.
+                        WarnNoTestsMatchedFilter(eventHandler, testRunCriteria.TestCaseFilter!, source);
+                        continue;
+                    }
+                }
+
+                processId = RunSource(source, testsToRun, eventHandler, aggregate, attachments, executorUris);
             }
             catch (OperationCanceledException)
             {
@@ -415,6 +460,19 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
         return (criteria.Sources ?? Enumerable.Empty<string>())
             .Select(source => (source, (List<TestCase>?)null));
     }
+
+    /// <summary>
+    /// Reports that the test case filter selected no test in the source, with the same message the
+    /// classic path emits, so a run that deliberately executes nothing still says why.
+    /// </summary>
+    private static void WarnNoTestsMatchedFilter(IInternalTestRunEventsHandler eventHandler, string filter, string source)
+        => eventHandler.HandleLogMessage(
+            ObjectModel.Logging.TestMessageLevel.Warning,
+            string.Format(
+                CultureInfo.CurrentCulture,
+                CrossPlatEngineResources.NoTestsAvailableForGivenTestCaseFilter,
+                TestCaseFilterDeterminer.ShortenTestCaseFilterIfRequired(filter),
+                source));
 
     /// <summary>
     /// Reads the environment variables declared in the runsettings
