@@ -92,7 +92,9 @@ internal static class MtpTestNodeConverter
             // included), so all of them would hash to a single Id. Colliding ids merge the rows into
             // one TRX entry and cross-wire the per-test-case data collector correlation, which is how
             // two data rows silently became one test.
-            testCase.Id = EqtHash.GuidFromString(source + uid);
+            // The separator keeps the key unambiguous: without it a source that is a prefix of another
+            // source produces the same concatenation under a different split.
+            testCase.Id = EqtHash.GuidFromString(source + "\u0000" + uid);
         }
 
         string? file = GetRawString(update, LocationFileKey);

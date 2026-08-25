@@ -110,15 +110,22 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
         List<(string Source, List<TestCase>? Tests)> work;
         try
         {
-            work = ResolveWork(testRunCriteria, eventHandler);
+            work = ResolveWork(testRunCriteria, eventHandler, out aborted);
+        }
+        catch (OperationCanceledException)
+        {
+            // A cancelled resolve is not a failure. The complete args already carry isCanceled from the
+            // token; marking it aborted as well would make the console report "Test Run Aborted" for a
+            // cancellation the user asked for.
+            work = [];
         }
         catch (Exception ex)
         {
             EqtTrace.Error("MtpProxyExecutionManager.StartTestRun: could not resolve the tests to run: {0}", ex);
             eventHandler.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Error, ex.Message);
 
-            // An unusable filter, or a failed discovery, must degrade to running nothing - never to
-            // running everything, which is the silent wrong answer this path exists to remove.
+            // An unusable filter must degrade to running nothing - never to running everything, which
+            // is the silent wrong answer this path exists to remove.
             work = [];
             aborted = true;
         }
@@ -447,15 +454,18 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
     /// otherwise omits it, which the server reads as "run every test", so an empty list would turn
     /// "matched nothing" into "ran the whole suite".
     /// </summary>
-    private List<(string Source, List<TestCase>? Tests)> ResolveWork(TestRunCriteria criteria, IInternalTestRunEventsHandler eventHandler)
+    private List<(string Source, List<TestCase>? Tests)> ResolveWork(TestRunCriteria criteria, IInternalTestRunEventsHandler eventHandler, out bool aborted)
     {
+        aborted = false;
+
         if (criteria.HasSpecificTests || criteria.TestCaseFilter.IsNullOrEmpty())
         {
             return BuildWork(criteria).ToList();
         }
 
-        // Parsed once for the whole run rather than per source, so an unusable expression is reported
-        // once and before any application is launched.
+        // Parsed before the loop and deliberately NOT caught per source: an unusable expression is
+        // global, so it must take every source down with it. A discovery failure, by contrast, is local
+        // to one source and must not - see the per-source catch below.
         TestCaseFilterExpression filterExpression = MtpTestCaseFilter.CreateExpression(criteria.TestCaseFilter, criteria.FilterOptions);
 
         var work = new List<(string Source, List<TestCase>? Tests)>();
@@ -466,17 +476,38 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
                 break;
             }
 
-            List<TestCase> matched = MtpTestCaseFilter.Filter(
-                MtpSourceDiscoverer.Discover(
+            List<TestCase> discovered;
+            try
+            {
+                discovered = MtpSourceDiscoverer.Discover(
                     source,
                     eventHandler.HandleLogMessage,
                     _cancellationTokenSource.Token,
-                    _runSettingsEnvironmentVariables),
-                filterExpression);
+                    _runSettingsEnvironmentVariables);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                EqtTrace.Error("MtpProxyExecutionManager.ResolveWork: discovery failed for '{0}': {1}", source, ex);
+                eventHandler.HandleLogMessage(
+                    ObjectModel.Logging.TestMessageLevel.Error,
+                    $"Microsoft.Testing.Platform discovery failed for '{source}': {ex.Message}");
 
+                // Omit this source and carry on with the rest. One application that cannot be launched
+                // must not cancel the sources that can be - and it must not be added with a null test
+                // list either, which RunSource would read as "run everything in it".
+                aborted = true;
+                continue;
+            }
+
+            List<TestCase> matched = MtpTestCaseFilter.Filter(discovered, filterExpression);
             if (matched.Count == 0)
             {
                 WarnNoTestsMatchedFilter(eventHandler, criteria.TestCaseFilter, source);
+                WarnIfFilterNamesUnknownProperties(eventHandler, filterExpression, discovered);
                 continue;
             }
 
@@ -484,6 +515,42 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
         }
 
         return work;
+    }
+
+    /// <summary>
+    /// When a filter selected nothing, reports the properties it names that no discovered test carries.
+    /// Without this a mistyped property (<c>Categary=Fast</c>) is indistinguishable from a filter that
+    /// is merely too narrow, because both simply match nothing.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately only called on an empty result, and evaluated over the union of properties across
+    /// every discovered test rather than one sample: a property carried by some tests and not others is
+    /// then never reported as invalid, so this can add information but never a false warning.
+    /// </remarks>
+    private static void WarnIfFilterNamesUnknownProperties(
+        IInternalTestRunEventsHandler eventHandler,
+        TestCaseFilterExpression filterExpression,
+        List<TestCase> discovered)
+    {
+        if (discovered.Count == 0)
+        {
+            return;
+        }
+
+        List<string> supportedProperties = MtpTestCaseFilter.SupportedProperties(discovered);
+        string[]? invalidProperties = filterExpression.ValidForProperties(supportedProperties, _ => null);
+        if (invalidProperties is not { Length: > 0 })
+        {
+            return;
+        }
+
+        eventHandler.HandleLogMessage(
+            ObjectModel.Logging.TestMessageLevel.Warning,
+            string.Format(
+                CultureInfo.CurrentCulture,
+                CrossPlatEngineResources.UnsupportedPropertiesInTestCaseFilter,
+                string.Join(CrossPlatEngineResources.StringSeperator, invalidProperties),
+                string.Join(CrossPlatEngineResources.StringSeperator, supportedProperties.ToArray())));
     }
 
     private static IEnumerable<(string Source, List<TestCase>? Tests)> BuildWork(TestRunCriteria criteria)

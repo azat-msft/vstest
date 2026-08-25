@@ -69,6 +69,25 @@ internal static class MtpTestCaseFilter
     }
 
     /// <summary>
+    /// Returns the union of the property names <see cref="CreatePropertyValueProvider"/> would expose
+    /// across <paramref name="tests"/>, for reporting the properties a filter names that no test
+    /// carries. Built from the provider itself so the two can never drift apart.
+    /// </summary>
+    public static List<string> SupportedProperties(IEnumerable<TestCase> tests)
+    {
+        var names = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (TestCase testCase in tests)
+        {
+            foreach (string name in CollectPropertyNames(testCase))
+            {
+                names.Add(name);
+            }
+        }
+
+        return [.. names];
+    }
+
+    /// <summary>
     /// Builds the property lookup a <see cref="TestCaseFilterExpression"/> evaluates a filter against.
     ///
     /// Every property carried on the test case is exposed by its label, plus the <c>DisplayName</c> alias
@@ -78,6 +97,21 @@ internal static class MtpTestCaseFilter
     /// nothing rather than error, so the breadth here is the point.
     /// </summary>
     internal static Func<string, object?> CreatePropertyValueProvider(TestCase testCase)
+    {
+        Dictionary<string, List<string>> properties = BuildProperties(testCase);
+
+        return name => properties.TryGetValue(name, out List<string>? values)
+            ? values.Count == 1 ? values[0] : values.ToArray()
+            : null;
+    }
+
+    /// <summary>
+    /// The property names <see cref="CreatePropertyValueProvider"/> would expose for one test case.
+    /// </summary>
+    private static IEnumerable<string> CollectPropertyNames(TestCase testCase)
+        => BuildProperties(testCase).Keys;
+
+    private static Dictionary<string, List<string>> BuildProperties(TestCase testCase)
     {
         var properties = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
@@ -150,8 +184,6 @@ internal static class MtpTestCaseFilter
             Add(trait.Name, trait.Value);
         }
 
-        return name => properties.TryGetValue(name, out List<string>? values)
-            ? values.Count == 1 ? values[0] : values.ToArray()
-            : null;
+        return properties;
     }
 }

@@ -258,4 +258,86 @@ public class MtpProxyExecutionManagerTests
             h => h.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Error, It.IsAny<string>()),
             Times.AtLeastOnce);
     }
+
+    /// <summary>
+    /// A source whose discovery cannot even be started must not cancel the sources that can be. The
+    /// filter is global so an unparseable expression takes the whole run down, but a failure to launch
+    /// one application is local to it: the other sources still run, and the run is marked aborted so
+    /// the failure is not passed off as success.
+    /// </summary>
+    [TestMethod]
+    public void StartTestRunKeepsRunningOtherSourcesWhenOneSourceCannotBeDiscovered()
+    {
+        const string goodSource = @"C:\tests\GoodApp.dll";
+        const string badSource = @"C:\tests\BadApp.dll";
+
+        var goodClient = new FakeMtpServerClient
+        {
+            NodesToPush = [DiscoveredNode("uid-passes", "My.Tests.UnitTests", "TestPasses")],
+        };
+
+        MtpServerClientFactory.Launch = (source, _) => source == badSource
+            ? throw new InvalidOperationException("could not launch")
+            : goodClient;
+
+        using var manager = new MtpProxyExecutionManager();
+        manager.StartTestRun(
+            new TestRunCriteria([badSource, goodSource], 1, keepAlive: false, string.Empty, TimeSpan.MaxValue, testHostLauncher: null, "FullyQualifiedName~TestPasses", filterOptions: null),
+            _eventHandler.Object);
+
+        Assert.IsNotNull(goodClient.RunFilterUids, "The healthy source must still run its matching tests.");
+        Assert.AreEqual("uid-passes", goodClient.RunFilterUids.Single());
+        _eventHandler.Verify(
+            h => h.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Error, It.IsAny<string>()),
+            Times.AtLeastOnce);
+        _eventHandler.Verify(
+            h => h.HandleTestRunComplete(
+                It.Is<TestRunCompleteEventArgs>(args => args.IsAborted),
+                It.IsAny<TestRunChangedEventArgs>(),
+                It.IsAny<ICollection<AttachmentSet>>(),
+                It.IsAny<ICollection<string>>()),
+            Times.Once,
+            "A source that could not be discovered must mark the run aborted.");
+    }
+
+    /// <summary>
+    /// A mistyped property name matches nothing, exactly like a filter that is merely too narrow. The
+    /// run must say which property it did not recognize, or the two are indistinguishable.
+    /// </summary>
+    [TestMethod]
+    public void StartTestRunReportsFilterPropertiesNoDiscoveredTestCarries()
+    {
+        _client.NodesToPush = [DiscoveredNode("uid-passes", "My.Tests.UnitTests", "TestPasses")];
+
+        using var manager = new MtpProxyExecutionManager();
+        manager.StartTestRun(CriteriaWithFilter("NoSuchProperty=Whatever"), _eventHandler.Object);
+
+        Assert.IsFalse(_client.RunRequested);
+        _eventHandler.Verify(
+            h => h.HandleLogMessage(
+                ObjectModel.Logging.TestMessageLevel.Warning,
+                It.Is<string>(message => message.Contains("NoSuchProperty"))),
+            Times.AtLeastOnce,
+            "The unrecognized property must be named.");
+    }
+
+    /// <summary>
+    /// A filter naming only real properties that simply match nothing must NOT be reported as naming an
+    /// invalid property - that would be a false alarm on a perfectly valid, merely narrow filter.
+    /// </summary>
+    [TestMethod]
+    public void StartTestRunDoesNotReportInvalidPropertiesForAValidButNarrowFilter()
+    {
+        _client.NodesToPush = [DiscoveredNode("uid-passes", "My.Tests.UnitTests", "TestPasses")];
+
+        using var manager = new MtpProxyExecutionManager();
+        manager.StartTestRun(CriteriaWithFilter("FullyQualifiedName~NoSuchTest"), _eventHandler.Object);
+
+        _eventHandler.Verify(
+            h => h.HandleLogMessage(
+                ObjectModel.Logging.TestMessageLevel.Warning,
+                It.Is<string>(message => message.Contains("not valid"))),
+            Times.Never,
+            "A valid property that matched nothing must not be reported as invalid.");
+    }
 }

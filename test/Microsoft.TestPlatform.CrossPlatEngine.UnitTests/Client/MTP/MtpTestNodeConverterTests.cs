@@ -134,10 +134,6 @@ public class MtpTestNodeConverterTests
     }
 
     /// <summary>
-    /// With no managed location and no bridge property there is nothing to build a name from, so the
-    /// uid stands. An invented name would be worse than an opaque but truthful one.
-    /// </summary>
-    /// <summary>
     /// MTP reports one node per data row, and every data row of a method shares its location.type and
     /// location.method (parameter types included), so the derived fully qualified name is identical
     /// across them. TestCase.Id defaults to a hash of ExecutorUri + source + that name, so without an
@@ -201,6 +197,10 @@ public class MtpTestNodeConverterTests
         Assert.AreNotEqual(first.Id, second.Id);
     }
 
+    /// <summary>
+    /// With no managed location and no bridge property there is nothing to build a name from, so the
+    /// uid stands. An invented name would be worse than an opaque but truthful one.
+    /// </summary>
     [TestMethod]
     public void ToTestCaseUsesUidAsFullyQualifiedNameWhenBridgePropertiesAbsent()
     {
