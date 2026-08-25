@@ -65,7 +65,6 @@ public class IntegrationTestBase
         TempDirectory.NuGetConfigPath = Path.Combine(IntegrationTestEnvironment.RepoRootDirectory, "NuGet.config");
         TempDirectory = new TempDirectory();
 
-
         var drive = new DriveInfo(Directory.GetDirectoryRoot(TempDirectory.Path));
         Console.WriteLine($"Available space for TEMP: {drive.Name} {drive.AvailableFreeSpace / (1024 * 1024)} MB");
 

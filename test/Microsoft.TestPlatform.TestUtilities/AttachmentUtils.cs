@@ -138,12 +138,12 @@ public static class AttachmentUtils
         try
         {
             // Materialize the result, an error in the middle of a lazy enumeration would escape this try.
-            return new List<string>(Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories));
+            return [.. Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)];
         }
         catch (Exception ex)
         {
             log($"Could not list the files in '{directory}': {ex.Message}");
-            return new List<string>();
+            return [];
         }
     }
 
