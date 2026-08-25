@@ -41,6 +41,9 @@ internal sealed class FakeMtpServerClient : IMtpServerClient
 
     public bool Disposed { get; private set; }
 
+    /// <summary>Gets a value indicating whether the manager asked the server to run anything at all.</summary>
+    public bool RunRequested { get; private set; }
+
     /// <summary>Gets the uids the manager asked the server to run, when a filtered run was requested.</summary>
     public IReadOnlyCollection<string>? RunFilterUids { get; private set; }
 
@@ -83,16 +86,23 @@ internal sealed class FakeMtpServerClient : IMtpServerClient
         => DiscoverTestsAsync(cancellationToken);
 
     public Task<MtpRunResult> RunTestsAsync(CancellationToken cancellationToken = default)
-        => CompleteRun();
+    {
+        RunRequested = true;
+        return CompleteRun();
+    }
 
     public Task<MtpRunResult> RunTestsAsync(IReadOnlyCollection<string> testNodeUids, CancellationToken cancellationToken = default)
     {
+        RunRequested = true;
         RunFilterUids = testNodeUids;
         return CompleteRun();
     }
 
     public Task<MtpRunResult> RunTestsWithFilterAsync(string graphFilter, CancellationToken cancellationToken = default)
-        => CompleteRun();
+    {
+        RunRequested = true;
+        return CompleteRun();
+    }
 
     public async Task ExitAsync(CancellationToken cancellationToken = default)
     {

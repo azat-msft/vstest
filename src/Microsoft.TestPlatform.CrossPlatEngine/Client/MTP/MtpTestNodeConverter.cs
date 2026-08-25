@@ -35,6 +35,8 @@ internal static class MtpTestNodeConverter
     private const string StandardErrorKey = "standardError";
     private const string LocationFileKey = "location.file";
     private const string LocationLineStartKey = "location.line-start";
+    private const string LocationTypeKey = "location.type";
+    private const string LocationMethodKey = "location.method";
     private const string TraitsKey = "traits";
 
     // Optional VSTest-provider properties (present only when the app still runs on the VSTestBridge).
@@ -69,6 +71,7 @@ internal static class MtpTestNodeConverter
     {
         string? uid = update.Uid;
         string fullyQualifiedName = GetRawString(update, VsTestFullyQualifiedNameKey)
+            ?? GetManagedName(update)
             ?? (uid is { Length: > 0 } ? uid : Guid.NewGuid().ToString());
         string executorUri = GetRawString(update, VsTestExecutorUriKey) ?? DefaultExecutorUri;
 
@@ -149,6 +152,31 @@ internal static class MtpTestNodeConverter
             StateSkipped => TestOutcome.Skipped,
             _ => TestOutcome.None,
         };
+
+    /// <summary>
+    /// Builds a vstest-shaped fully qualified name from the managed location the MTP node carries
+    /// (<c>location.type</c> plus <c>location.method</c>, e.g. <c>My.Tests.MyClass</c> + <c>MyTest</c>).
+    ///
+    /// This matters beyond cosmetics. Without it the fully qualified name falls back to the node uid,
+    /// which for an MSTest MTP application is a GUID, and a GUID satisfies no
+    /// <c>/TestCaseFilter:"FullyQualifiedName~..."</c> the user would ever write - the most common
+    /// filter form silently matches nothing. It also reaches the TRX and
+    /// <c>/ListFullyQualifiedTests</c>, where a GUID is equally unusable.
+    ///
+    /// Returns null when the node carries no managed location, leaving the uid fallback in place: an
+    /// invented name would be worse than an opaque but truthful one.
+    /// </summary>
+    private static string? GetManagedName(MtpTestNodeUpdate update)
+    {
+        string? method = GetRawString(update, LocationMethodKey);
+        if (method.IsNullOrEmpty())
+        {
+            return null;
+        }
+
+        string? type = GetRawString(update, LocationTypeKey);
+        return type.IsNullOrEmpty() ? method : $"{type}.{method}";
+    }
 
     private static void AddTraits(MtpTestNodeUpdate update, TestCase testCase)
     {

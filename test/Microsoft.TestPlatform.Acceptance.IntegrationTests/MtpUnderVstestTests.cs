@@ -336,6 +336,55 @@ public class MtpUnderVstestTests : AcceptanceTestBase
         Assert.HasCount(6, testCaseAttachments, "Expected one per-test-case attachment for each started MtpMSTestProject test case forwarded on the MTP path.");
     }
 
+    [TestMethod]
+    // /TestCaseFilter must scope an MTP run exactly as it does on the classic path. MTP addresses tests
+    // by node uid and has no notion of the vstest filter expression, so vstest.console discovers the
+    // application, evaluates the expression against the discovered tests and runs only the matching
+    // uids. Before this the filter was dropped and the whole suite ran while reporting success.
+    // TestPasses and TestPassesToo match; TestFails, TestSkipped and the other two do not.
+    [TestMatrix(testHost: Target.Net)]
+    public void RunMtpApplicationHonorsTestCaseFilter(RunnerInfo runnerInfo)
+    {
+        SetTestEnvironment(_testEnvironment, runnerInfo);
+
+        var arguments = PrepareArguments(
+            GetAssetFullPath(MtpApp),
+            testAdapterPath: null,
+            runSettings: string.Empty,
+            FrameworkArgValue,
+            runnerInfo.InIsolationValue,
+            resultsDirectory: TempDirectory.Path);
+        arguments = string.Concat(arguments, " /TestCaseFilter:\"FullyQualifiedName~TestPasses\"");
+
+        InvokeVsTestWithMtpTestHostEnabled(arguments);
+
+        ValidateSummaryStatus(2, 0, 0);
+    }
+
+    [TestMethod]
+    // A filter matching nothing must run zero tests, not fall back to the whole suite. "Matched nothing"
+    // and "no filter given" reach the MTP server as the same request unless the source is skipped
+    // outright, which is exactly how the whole suite used to run for a filter that selected nothing.
+    [TestMatrix(testHost: Target.Net)]
+    public void RunMtpApplicationRunsNoTestsWhenTestCaseFilterMatchesNothing(RunnerInfo runnerInfo)
+    {
+        SetTestEnvironment(_testEnvironment, runnerInfo);
+
+        var arguments = PrepareArguments(
+            GetAssetFullPath(MtpApp),
+            testAdapterPath: null,
+            runSettings: string.Empty,
+            FrameworkArgValue,
+            runnerInfo.InIsolationValue,
+            resultsDirectory: TempDirectory.Path);
+        arguments = string.Concat(arguments, " /TestCaseFilter:\"FullyQualifiedName~NoSuchTestNameMatchesThis\"");
+
+        InvokeVsTestWithMtpTestHostEnabled(arguments);
+
+        ValidateSummaryStatus(0, 0, 0);
+        StdOutputContains("No test matches the given testcase filter");
+    }
+
     private void InvokeVsTestWithMtpTestHostEnabled(string arguments, Dictionary<string, string?>? environmentVariables = null)
     {
         environmentVariables ??= [];

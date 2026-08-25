@@ -105,6 +105,38 @@ public class MtpTestNodeConverterTests
         Assert.AreEqual(-1, testCase.LineNumber, "A non-numeric line-start must leave LineNumber at its TestCase default.");
     }
 
+    /// <summary>
+    /// An MTP node carrying a managed location must produce a vstest-shaped fully qualified name.
+    /// Falling back to the uid here (which is what this did before) yields a GUID for an MSTest MTP
+    /// application, and a GUID satisfies no <c>FullyQualifiedName~...</c> filter the user would write,
+    /// so the most common filter form silently matched nothing.
+    /// </summary>
+    [TestMethod]
+    public void ToTestCaseBuildsFullyQualifiedNameFromManagedLocation()
+    {
+        TestCase testCase = MtpTestNodeConverter.ToTestCase(
+            Node(("location.type", "My.Namespace.MyClass"), ("location.method", "MyTest")),
+            Source);
+
+        Assert.AreEqual("My.Namespace.MyClass.MyTest", testCase.FullyQualifiedName);
+    }
+
+    /// <summary>
+    /// A node with a method but no declaring type still produces a usable name rather than falling
+    /// back to the uid.
+    /// </summary>
+    [TestMethod]
+    public void ToTestCaseUsesMethodAloneWhenLocationTypeMissing()
+    {
+        TestCase testCase = MtpTestNodeConverter.ToTestCase(Node(("location.method", "MyTest")), Source);
+
+        Assert.AreEqual("MyTest", testCase.FullyQualifiedName);
+    }
+
+    /// <summary>
+    /// With no managed location and no bridge property there is nothing to build a name from, so the
+    /// uid stands. An invented name would be worse than an opaque but truthful one.
+    /// </summary>
     [TestMethod]
     public void ToTestCaseUsesUidAsFullyQualifiedNameWhenBridgePropertiesAbsent()
     {
@@ -113,6 +145,23 @@ public class MtpTestNodeConverterTests
         Assert.AreEqual("node-uid-1", testCase.FullyQualifiedName);
         Assert.AreEqual(MtpTestNodeConverter.DefaultExecutorUri, testCase.ExecutorUri.OriginalString);
         Assert.AreEqual(Source, testCase.Source);
+    }
+
+    /// <summary>
+    /// The vstest bridge property is the app's own answer for its vstest identity, so it outranks the
+    /// name derived from the managed location.
+    /// </summary>
+    [TestMethod]
+    public void ToTestCasePrefersBridgeFullyQualifiedNameOverManagedLocation()
+    {
+        TestCase testCase = MtpTestNodeConverter.ToTestCase(
+            Node(
+                ("vstest.TestCase.FullyQualifiedName", "Bridge.Name"),
+                ("location.type", "My.Namespace.MyClass"),
+                ("location.method", "MyTest")),
+            Source);
+
+        Assert.AreEqual("Bridge.Name", testCase.FullyQualifiedName);
     }
 
     [TestMethod]

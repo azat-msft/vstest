@@ -164,4 +164,98 @@ public class MtpProxyExecutionManagerTests
             "Exit must not be driven by the cancelled run token, or it would be skipped.");
         Assert.IsTrue(_client.Disposed, "The launched test application must never outlive a cancelled run.");
     }
+
+    /// <summary>
+    /// Builds an MTP node the fake server reports during discovery.
+    /// </summary>
+    private static MtpTestNodeUpdate DiscoveredNode(string uid, string type, string method)
+        => new(
+            new Dictionary<string, object?>
+            {
+                ["uid"] = uid,
+                ["display-name"] = method,
+                ["node-type"] = "action",
+                ["location.type"] = type,
+                ["location.method"] = method,
+            },
+            parentUid: null);
+
+    private static TestRunCriteria CriteriaWithFilter(string filter)
+        => new([Source], 1, keepAlive: false, string.Empty, TimeSpan.MaxValue, testHostLauncher: null, filter, filterOptions: null);
+
+    /// <summary>
+    /// The headline behaviour: a /TestCaseFilter run must execute only the matching tests. MTP has no
+    /// notion of the vstest filter expression, so vstest.console discovers the source, evaluates the
+    /// expression itself and runs the matching node uids. Before this the filter was dropped entirely
+    /// and the server ran the whole suite while reporting success.
+    /// </summary>
+    [TestMethod]
+    public void StartTestRunRunsOnlyTheTestsMatchingTheTestCaseFilter()
+    {
+        _client.NodesToPush =
+        [
+            DiscoveredNode("uid-passes", "My.Tests.UnitTests", "TestPasses"),
+            DiscoveredNode("uid-fails", "My.Tests.UnitTests", "TestFails"),
+        ];
+
+        using var manager = new MtpProxyExecutionManager();
+        manager.StartTestRun(CriteriaWithFilter("FullyQualifiedName~TestPasses"), _eventHandler.Object);
+
+        Assert.IsNotNull(_client.RunFilterUids, "A filtered run must address the matching tests by uid.");
+        Assert.AreEqual("uid-passes", _client.RunFilterUids.Single());
+    }
+
+    /// <summary>
+    /// "The filter matched nothing" and "no filter was given" must not collapse into the same call.
+    /// RunTestsAsync with no uid filter means "run everything" to the server, so a non-matching filter
+    /// has to skip the source entirely rather than pass an empty list.
+    /// </summary>
+    [TestMethod]
+    public void StartTestRunRunsNothingWhenTheTestCaseFilterMatchesNoTest()
+    {
+        _client.NodesToPush = [DiscoveredNode("uid-passes", "My.Tests.UnitTests", "TestPasses")];
+
+        using var manager = new MtpProxyExecutionManager();
+        manager.StartTestRun(CriteriaWithFilter("FullyQualifiedName~NoSuchTest"), _eventHandler.Object);
+
+        Assert.IsFalse(_client.RunRequested, "A filter matching nothing must not start a run at all.");
+        _eventHandler.Verify(
+            h => h.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Warning, It.IsAny<string>()),
+            Times.AtLeastOnce);
+    }
+
+    /// <summary>
+    /// Filters address traits and the other test case properties, not just the fully qualified name.
+    /// </summary>
+    [TestMethod]
+    public void StartTestRunMatchesTheTestCaseFilterAgainstDisplayName()
+    {
+        _client.NodesToPush =
+        [
+            DiscoveredNode("uid-passes", "My.Tests.UnitTests", "TestPasses"),
+            DiscoveredNode("uid-fails", "My.Tests.UnitTests", "TestFails"),
+        ];
+
+        using var manager = new MtpProxyExecutionManager();
+        manager.StartTestRun(CriteriaWithFilter("DisplayName~TestFails"), _eventHandler.Object);
+
+        Assert.IsNotNull(_client.RunFilterUids);
+        Assert.AreEqual("uid-fails", _client.RunFilterUids.Single());
+    }
+
+    /// <summary>
+    /// An unparseable filter must fail the run rather than degrade into running the whole suite, which
+    /// is the same silent-wrong-answer failure mode the filter support exists to remove.
+    /// </summary>
+    [TestMethod]
+    public void StartTestRunFailsLoudlyWhenTheTestCaseFilterCannotBeParsed()
+    {
+        using var manager = new MtpProxyExecutionManager();
+        manager.StartTestRun(CriteriaWithFilter("("), _eventHandler.Object);
+
+        Assert.IsFalse(_client.RunRequested, "An unusable filter must never run every test.");
+        _eventHandler.Verify(
+            h => h.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Error, It.IsAny<string>()),
+            Times.AtLeastOnce);
+    }
 }

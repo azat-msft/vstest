@@ -100,7 +100,7 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
         // the matching uids are run. Built once for the whole run rather than per source so an invalid
         // expression is reported once.
         TestCaseFilterExpression? filterExpression = null;
-        bool filterIsUnusable = false;
+        IEnumerable<(string Source, List<TestCase>? Tests)> work = BuildWork(testRunCriteria);
         if (!testRunCriteria.HasSpecificTests && !testRunCriteria.TestCaseFilter.IsNullOrEmpty())
         {
             try
@@ -112,15 +112,16 @@ internal sealed class MtpProxyExecutionManager : IProxyExecutionManager, IDispos
                 EqtTrace.Error("MtpProxyExecutionManager.StartTestRun: invalid test case filter: {0}", ex);
                 eventHandler.HandleLogMessage(ObjectModel.Logging.TestMessageLevel.Error, ex.Message);
 
-                // No source may run: an unusable filter must not degrade into running everything.
-                filterIsUnusable = true;
+                // No source may run: an unusable filter must degrade to running nothing, never to
+                // running everything.
+                work = [];
                 aborted = true;
             }
         }
 
-        foreach (var (source, tests) in BuildWork(testRunCriteria))
+        foreach (var (source, tests) in work)
         {
-            if (filterIsUnusable || _cancellationTokenSource.IsCancellationRequested)
+            if (_cancellationTokenSource.IsCancellationRequested)
             {
                 break;
             }
