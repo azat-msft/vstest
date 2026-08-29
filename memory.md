@@ -1,10 +1,10 @@
 # Efficiency Improver Memory — azat-msft/vstest
-Last updated: 2026-08-22
+Last updated: 2026-08-29
 
 ## Build/Test Commands (Validated)
 - **Build (Debug):** `./build.sh` — downloads pinned SDK to `.dotnet/` if needed
 - **Build (Release / CI-like):** `./build.sh -c Release`
-- **Test by pattern:** `./test.sh -p <pattern>` (e.g. `CrossPlatEngine`, `CommunicationUtilities`)
+- **Test by pattern:** `./test.sh --projects <path-or-glob>`
 - **Note:** SDK not available in this agent environment; CI must validate builds
 
 ## Efficiency Notes
@@ -22,6 +22,8 @@ Last updated: 2026-08-22
 - LengthPrefixCommunicationChannel: already well-optimized (buffered writes, BinaryWriter/UTF8)
 - TestCaseConverterV2: only 1 GetRawText() remaining (cold path fallback at line 64)
 - XmlPersistence.cs:682-683: static Regex.Replace with local pattern string — uses internal cache (15-entry), acceptable
+- `XmlRunSettingsUtilities.ReaderSettings` is called ~12× per run; each call creates new XmlReaderSettings. Already in backlog as MEDIUM.
+- 2026-08-29 scan: PlatformAssemblyResolver, TestAdapterPathArgumentProcessor, DiscoveryManager, DefaultEngineInvoker, CrossPlatEngine execution — nothing new HIGH.
 
 ## Open PRs
 None.
@@ -49,7 +51,7 @@ None.
 |---|---|---|---|---|
 | MEDIUM | TestRequestManager.cs:576-584 | `UpdateRunSettingsIfRequired` parses runsettings XML 3× per run (XmlDocument.Load + GetRunConfigurationNode + GetLoggerRunSettings) — could reuse the already-loaded XmlDocument | ~2-5ms per run |
 | MEDIUM | 6 IPC deserializer files | `GetRawText().Trim('"')` — fallback path for non-string JSON property values | marginal | Unclear if hot path in practice |
-| MEDIUM | XmlRunSettingsUtilities.cs:46-51 | `ReaderSettings` property creates new `XmlReaderSettings` on every call. Should be `static readonly`. | ~16 small allocs per run | Public API — mutability risk. 16 callers confirmed. |
+| MEDIUM | XmlRunSettingsUtilities.cs:46-51 | `ReaderSettings` property creates new `XmlReaderSettings` on every call. Should be `static readonly`. | ~16 small allocs per run | Public API — mutability risk. 12+ callers confirmed. |
 | MEDIUM | TestObjectBaseConverter.cs:~78 | `GetRawText().Trim('"')` fallback for non-string property values in test object property bag deserialization | cold path | Only fires for non-string property values |
 | MEDIUM | TestProperty.cs:255-276 | `Properties` dictionary uses explicit `lock` — ConcurrentDictionary would avoid lock per TestProperty lookup during deserialization | per-test × 8 properties | At N=1 test, impact is negligible. Scales with N. |
 | LOW | TestPluginCache.cs:90-101,150-151 | `string.Join` in `GetExtensionPaths`/`DiscoverTestExtensions` not guarded by `IsVerboseEnabled` | <0.1ms/run | Bundle with other unguarded trace calls |
@@ -57,12 +59,12 @@ None.
 | LOW | AssemblyResolver.cs:52,69 | Eager string.Join in EqtTrace.Info | <0.1ms/run | Bundle only |
 | LOW | TestPluginCache.cs:416 | `additionalExtensions.All(extensionsList.Contains)` is O(n×m) but N is tiny (5-20) | negligible | O(n²) technically, but N too small to matter |
 
-**Next scan suggestions:** Look at testhost startup assembly loading (PlatformAssemblyResolver, DefaultEngineInvoker); examine TestAdapterPathArgumentProcessor for per-path overhead; look at repeated attribute reflection in test discovery.
+**Next scan suggestions:** Look at TestHostManager startup (DefaultTestHostManager, DotnetTestHostManager); examine ProxyDiscoveryManager handshake overhead; check for repeated LINQ in hot loops within TestRunCache.
 
 ## Tasks Last Run
-- Task 7 (Monthly summary): 2026-08-22 — new August 2026 issue created
-- Task 2 (Identify opportunities): 2026-08-22 — scanned DataCollectionRequestHandler, TestPluginCache, TestRequestManager, XmlRunSettingsUtilities, LengthPrefixCommunicationChannel, TestCaseConverterV2; no new HIGH items
-- Task 4 (Maintain PRs): 2026-08-08 — no open PRs
+- Task 7 (Monthly summary): 2026-08-29 — new August 2026 issue created
+- Task 2 (Identify opportunities): 2026-08-29 — scanned PlatformAssemblyResolver, TestAdapterPathArgumentProcessor, DiscoveryManager, DefaultEngineInvoker, CrossPlatEngine execution; no new HIGH items
+- Task 4 (Maintain PRs): 2026-08-29 — no open PRs confirmed
 - Task 3 (Implement improvement): 2026-07-18 — no HIGH items in backlog; skip
 - Task 5 (Comment on issues): 2026-07-06 (stable)
 - Task 6 (Measurement infrastructure): 2026-07-09 — no new PR created
