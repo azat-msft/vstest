@@ -56,4 +56,17 @@ public class DiscoveryCompletePayload
     /// Gets or sets the collection of discovered extensions.
     /// </summary>
     public Dictionary<string, HashSet<string>>? DiscoveredExtensions { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the name of the algorithm that computed the ids of the tests this discovery
+    /// reported, e.g. <c>SHA1</c> or <c>xxHash128</c>.
+    /// </summary>
+    /// <remarks>
+    /// The resolved algorithm rather than the declared one, and a name rather than a boolean, so an
+    /// algorithm added later is a new name. Reaches a client through
+    /// <see cref="Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.DiscoveryCompleteEventArgs.TestCaseIdAlgorithm"/>,
+    /// where the reason it is reported at all is written down. <see langword="null"/> from a peer
+    /// that predates it.
+    /// </remarks>
+    public string? TestCaseIdAlgorithm { get; set; }
 }

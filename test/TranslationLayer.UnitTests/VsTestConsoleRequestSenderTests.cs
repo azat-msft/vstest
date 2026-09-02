@@ -475,6 +475,74 @@ public class VsTestConsoleRequestSenderTests
         Assert.HasCount(1, receivedDiscoveryCompleteEventArgs.FullyDiscoveredSources);
     }
 
+    /// <summary>
+    /// The algorithm vstest.console reports reaches the client, so a client that caches discovery
+    /// results by test id can tell whether the ids it holds are still the ids discovery produces.
+    /// </summary>
+    [TestMethod]
+    public void DiscoverTestsShouldReportTheTestCaseIdAlgorithm()
+    {
+        var payload = new DiscoveryCompletePayload
+        {
+            TotalTests = 1,
+            LastDiscoveredTests = null,
+            IsAborted = false,
+            TestCaseIdAlgorithm = "xxHash128",
+        };
+
+        Assert.AreEqual("xxHash128", ReportedCompletion(payload).TestCaseIdAlgorithm);
+    }
+
+    /// <summary>
+    /// A vstest.console old enough not to report it says nothing rather than something wrong, and
+    /// the client is left to treat the ids as ids it cannot vouch for.
+    /// </summary>
+    [TestMethod]
+    public void DiscoverTestsShouldReportNoTestCaseIdAlgorithmFromAConsoleThatDoesNotSendOne()
+    {
+        // Hand-written rather than serialized from a payload, because the point is a message in
+        // which the property is absent altogether, not one in which it is present and null.
+        const string rawMessageWithoutAlgorithm = """
+            {"Version":7,"MessageType":"TestDiscovery.Completed","Payload":{"TotalTests":1,"IsAborted":false}}
+            """;
+
+        Assert.IsNull(ReportedCompletion(rawMessage: rawMessageWithoutAlgorithm).TestCaseIdAlgorithm);
+    }
+
+    /// <summary>
+    /// Runs a discovery that completes with <paramref name="payload"/>, or with
+    /// <paramref name="rawMessage"/> when the message is written out directly, and returns the
+    /// completion the client was handed.
+    /// </summary>
+    private DiscoveryCompleteEventArgs ReportedCompletion(DiscoveryCompletePayload? payload = null, string? rawMessage = null)
+    {
+        InitializeCommunication();
+
+        var mockHandler = new Mock<ITestDiscoveryEventsHandler2>();
+
+        var discoveryComplete = new Message()
+        {
+            MessageType = MessageType.DiscoveryComplete,
+            Version = _protocolVersion,
+            RawMessage = rawMessage
+                ?? JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, payload!, _protocolVersion),
+        };
+
+        DiscoveryCompleteEventArgs? received = null;
+
+        _mockCommunicationManager
+            .Setup(cm => cm.ReceiveMessageAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult<Message?>(discoveryComplete));
+        mockHandler
+            .Setup(mh => mh.HandleDiscoveryComplete(It.IsAny<DiscoveryCompleteEventArgs>(), It.IsAny<IEnumerable<TestCase>>()))
+            .Callback((DiscoveryCompleteEventArgs args, IEnumerable<TestCase> _) => received = args);
+
+        _requestSender.DiscoverTests(["1.dll"], null, new TestPlatformOptions(), null, mockHandler.Object);
+
+        Assert.IsNotNull(received, "Discovery did not report completion.");
+        return received;
+    }
+
     [TestMethod]
     public void DiscoverTestsShouldCompleteWithCorrectAbortedValuesIfAbortingWasRequested()
     {

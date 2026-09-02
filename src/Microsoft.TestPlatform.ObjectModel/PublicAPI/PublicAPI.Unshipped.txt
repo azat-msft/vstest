@@ -1,4 +1,6 @@
 ﻿#nullable enable
+Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.DiscoveryCompleteEventArgs.TestCaseIdAlgorithm.get -> string?
+Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.DiscoveryCompleteEventArgs.TestCaseIdAlgorithm.set -> void
 Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.ITelemetryEventsHandler
 Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.ITelemetryEventsHandler.HandleTelemetryEvent(Microsoft.VisualStudio.TestPlatform.ObjectModel.TelemetryEvent! telemetryEvent) -> void
 Microsoft.VisualStudio.TestPlatform.ObjectModel.DataCollection.TestCaseEndEventArgs.TestOutcome.set -> void

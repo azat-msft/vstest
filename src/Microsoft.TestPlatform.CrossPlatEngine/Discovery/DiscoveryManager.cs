@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 
+using Microsoft.TestPlatform.Hashing;
 using Microsoft.VisualStudio.TestPlatform.Common.ExtensionFramework;
 using Microsoft.VisualStudio.TestPlatform.Common.Logging;
 using Microsoft.VisualStudio.TestPlatform.Common.Telemetry;
@@ -179,6 +180,7 @@ public class DiscoveryManager : IDiscoveryManager
                     SkippedDiscoveredSources = _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.SkippedDiscovery),
                     DiscoveredExtensions = TestPluginCache.Instance.TestExtensions?.GetCachedExtensions(),
                     Metrics = _requestData.MetricsCollection.Metrics,
+                    TestCaseIdAlgorithm = TestCaseIdAlgorithmResolver.AmbientName,
                 };
 
                 eventHandler.HandleDiscoveryComplete(discoveryCompleteEventsArgs, lastChunk);
@@ -217,6 +219,7 @@ public class DiscoveryManager : IDiscoveryManager
             PartiallyDiscoveredSources = _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered),
             NotDiscoveredSources = _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered),
             SkippedDiscoveredSources = _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.SkippedDiscovery),
+            TestCaseIdAlgorithm = TestCaseIdAlgorithmResolver.AmbientName,
         };
         eventHandler.HandleDiscoveryComplete(discoveryCompleteEventArgs, null);
     }

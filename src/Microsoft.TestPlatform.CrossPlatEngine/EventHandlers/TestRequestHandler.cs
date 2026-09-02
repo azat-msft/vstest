@@ -259,6 +259,7 @@ public class TestRequestHandler : ITestRequestHandler, IDeploymentAwareTestReque
                 NotDiscoveredSources = discoveryCompleteEventArgs.NotDiscoveredSources,
                 SkippedDiscoverySources = discoveryCompleteEventArgs.SkippedDiscoveredSources,
                 DiscoveredExtensions = discoveryCompleteEventArgs.DiscoveredExtensions,
+                TestCaseIdAlgorithm = discoveryCompleteEventArgs.TestCaseIdAlgorithm,
             },
             _protocolVersion);
         SendData(data);

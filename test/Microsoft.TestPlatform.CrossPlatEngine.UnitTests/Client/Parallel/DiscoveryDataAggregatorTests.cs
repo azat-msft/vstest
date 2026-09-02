@@ -49,6 +49,57 @@ public class DiscoveryDataAggregatorTests
         Assert.AreEqual(10, aggregator.TotalTests, "Aggregated totalTests count does not match");
     }
 
+    /// <summary>
+    /// The hosts of one run resolve the algorithm from the same input, so the aggregate is simply
+    /// the value they all reported.
+    /// </summary>
+    [TestMethod]
+    public void AggregateShouldReportTheTestCaseIdAlgorithmEveryHostAgreedOn()
+    {
+        var aggregator = new DiscoveryDataAggregator();
+
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
+        aggregator.Aggregate(new(totalTests: 3, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
+
+        Assert.AreEqual("xxHash128", aggregator.TestCaseIdAlgorithm);
+    }
+
+    /// <summary>
+    /// Hosts that disagree leave the run's ids unaccounted for, and that is reported as the unknown
+    /// it is rather than as whichever host happened to report first.
+    /// </summary>
+    /// <remarks>
+    /// The realistic way to reach this is one host that predates the report and says nothing at all.
+    /// A client reading no name re-discovers, which costs a discovery; a client reading a name that
+    /// only some of the ids were computed with would keep the ones that were not.
+    /// </remarks>
+    [TestMethod]
+    public void AggregateShouldReportNoTestCaseIdAlgorithmWhenHostsDisagree()
+    {
+        var aggregator = new DiscoveryDataAggregator();
+
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
+        aggregator.Aggregate(new(totalTests: 3, isAborted: false) { TestCaseIdAlgorithm = null });
+
+        Assert.IsNull(aggregator.TestCaseIdAlgorithm);
+    }
+
+    /// <summary>
+    /// And a later host that agrees with the others does not talk the aggregate back into a name the
+    /// whole run cannot stand behind.
+    /// </summary>
+    [TestMethod]
+    public void AggregateShouldKeepReportingNoTestCaseIdAlgorithmAfterHostsDisagreed()
+    {
+        var aggregator = new DiscoveryDataAggregator();
+
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
+        aggregator.Aggregate(new(totalTests: 3, isAborted: false) { TestCaseIdAlgorithm = null });
+        aggregator.Aggregate(new(totalTests: 4, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
+
+        Assert.IsNull(aggregator.TestCaseIdAlgorithm);
+    }
+
     [TestMethod]
     public void AggregateDiscoveryDataMetricsShouldAggregateMetricsCorrectly()
     {

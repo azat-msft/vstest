@@ -135,6 +135,7 @@ internal class ParallelDiscoveryEventsHandler : ITestDiscoveryEventsHandler2
             SkippedDiscoverySources = skippedDiscovery,
             DiscoveredExtensions = _discoveryDataAggregator.DiscoveredExtensions,
             Metrics = aggregatedDiscoveryDataMetrics,
+            TestCaseIdAlgorithm = _discoveryDataAggregator.TestCaseIdAlgorithm,
         };
 
         // Sending discovery complete message to IDE
@@ -151,6 +152,7 @@ internal class ParallelDiscoveryEventsHandler : ITestDiscoveryEventsHandler2
             SkippedDiscoveredSources = skippedDiscovery,
             DiscoveredExtensions = _discoveryDataAggregator.DiscoveredExtensions,
             Metrics = aggregatedDiscoveryDataMetrics,
+            TestCaseIdAlgorithm = _discoveryDataAggregator.TestCaseIdAlgorithm,
         };
 
         // send actual test discovery complete to clients

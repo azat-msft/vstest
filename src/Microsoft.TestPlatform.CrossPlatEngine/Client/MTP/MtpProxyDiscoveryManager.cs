@@ -77,7 +77,15 @@ internal sealed class MtpProxyDiscoveryManager : IProxyDiscoveryManager, IDispos
             }
         }
 
-        eventHandler.HandleDiscoveryComplete(new DiscoveryCompleteEventArgs(totalTests, aborted), null);
+        eventHandler.HandleDiscoveryComplete(
+            new DiscoveryCompleteEventArgs(totalTests, aborted)
+            {
+                // The declared value if the run declared one, and otherwise the runner's own
+                // environment - which is what the test case falls back to when the converter is
+                // handed no algorithm, so this is the algorithm that computed the ids either way.
+                TestCaseIdAlgorithm = TestCaseIdAlgorithmResolver.ToName(_testCaseIdAlgorithm ?? TestCaseIdAlgorithmResolver.Ambient),
+            },
+            null);
     }
 
     public void Abort() => _cancellationTokenSource.Cancel();

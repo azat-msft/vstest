@@ -75,4 +75,31 @@ public class DiscoveryCompleteEventArgs : EventArgs
     /// </summary>
     [DataMember]
     public Dictionary<string, HashSet<string>>? DiscoveredExtensions { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the name of the algorithm that computed the ids of the tests this discovery
+    /// reported, e.g. <c>SHA1</c> or <c>xxHash128</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the algorithm actually used, resolved from the environment, the feature flag and the
+    /// built-in default, not the value a run declared. It is reported so that a client which caches
+    /// discovery results by test id - Visual Studio's Test Explorer keeps such a store - can notice
+    /// that the ids it holds are no longer the ids discovery produces, and re-discover instead of
+    /// showing every test twice.
+    /// </para>
+    /// <para>
+    /// A name rather than a boolean or an enum, so that an algorithm added later is a new name and
+    /// a client that does not recognize a name can treat it the same way it treats
+    /// <see langword="null"/>: as ids it cannot vouch for.
+    /// </para>
+    /// <para>
+    /// <see langword="null"/> when the discovery was performed by a version of the test platform
+    /// that predates this property, and on some abort paths that report no discovery at all.
+    /// </para>
+    /// </remarks>
+    [DataMember]
+    // Additive: a peer that predates this property ignores it on the way in and never sets it on
+    // the way out, at every negotiated protocol version.
+    public string? TestCaseIdAlgorithm { get; set; }
 }

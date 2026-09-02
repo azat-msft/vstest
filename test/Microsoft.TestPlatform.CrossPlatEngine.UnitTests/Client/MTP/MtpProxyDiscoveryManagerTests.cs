@@ -101,6 +101,80 @@ public class MtpProxyDiscoveryManagerTests
         Assert.IsTrue(_client.Disposed);
     }
 
+    /// <summary>
+    /// The MTP path reports the algorithm it computed the ids with too, so a client caching ids does
+    /// not have to guess for half of its projects.
+    /// </summary>
+    /// <remarks>
+    /// The runner converts MTP nodes into test cases itself rather than receiving them from a
+    /// testhost, so it is the runner - not a testhost - that resolves the algorithm here, and it is
+    /// the runner that has to report it.
+    /// </remarks>
+    [TestMethod]
+    public void DiscoverTestsReportsTheAlgorithmTheRunDeclared()
+    {
+        DiscoveryCompleteEventArgs? args = ReportedCompletion(
+            $"""
+            <RunSettings>
+              <RunConfiguration>
+                <EnvironmentVariables>
+                  <VSTEST_DISABLE_XXHASH128_TESTCASE_ID>0</VSTEST_DISABLE_XXHASH128_TESTCASE_ID>
+                </EnvironmentVariables>
+              </RunConfiguration>
+            </RunSettings>
+            """);
+
+        Assert.IsNotNull(args);
+        Assert.AreEqual("xxHash128", args.TestCaseIdAlgorithm);
+    }
+
+    [TestMethod]
+    public void DiscoverTestsReportsSha1WhenTheRunDeclaresTheOptOut()
+    {
+        DiscoveryCompleteEventArgs? args = ReportedCompletion(
+            $"""
+            <RunSettings>
+              <RunConfiguration>
+                <EnvironmentVariables>
+                  <VSTEST_DISABLE_XXHASH128_TESTCASE_ID>1</VSTEST_DISABLE_XXHASH128_TESTCASE_ID>
+                </EnvironmentVariables>
+              </RunConfiguration>
+            </RunSettings>
+            """);
+
+        Assert.IsNotNull(args);
+        Assert.AreEqual("SHA1", args.TestCaseIdAlgorithm);
+    }
+
+    /// <summary>
+    /// A run that declares nothing is reported as well, with the algorithm the runner's own
+    /// environment resolves to - which is what the test case falls back to when the converter is
+    /// handed no algorithm, so the report describes the ids that were actually produced.
+    /// </summary>
+    [TestMethod]
+    public void DiscoverTestsReportsAnAlgorithmWhenTheRunDeclaresNothing()
+    {
+        DiscoveryCompleteEventArgs? args = ReportedCompletion("<RunSettings></RunSettings>");
+
+        Assert.IsNotNull(args);
+        Assert.IsTrue(
+            args.TestCaseIdAlgorithm is "SHA1" or "xxHash128",
+            $"A run that declares nothing reported '{args.TestCaseIdAlgorithm}', which names no known algorithm.");
+    }
+
+    private DiscoveryCompleteEventArgs? ReportedCompletion(string runSettings)
+    {
+        DiscoveryCompleteEventArgs? args = null;
+        _eventHandler
+            .Setup(h => h.HandleDiscoveryComplete(It.IsAny<DiscoveryCompleteEventArgs>(), It.IsAny<IEnumerable<TestCase>>()))
+            .Callback((DiscoveryCompleteEventArgs complete, IEnumerable<TestCase>? _) => args = complete);
+
+        using var manager = new MtpProxyDiscoveryManager();
+        manager.DiscoverTests(new DiscoveryCriteria([Source], 1, runSettings), _eventHandler.Object);
+
+        return args;
+    }
+
     [TestMethod]
     public void SelectedRunFailsWhenDiscoveredActionNodeHasNoUid()
     {

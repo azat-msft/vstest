@@ -31,6 +31,12 @@ internal sealed class DiscoveryDataAggregator
     private int _isMessageSent;
 
     /// <summary>
+    /// Whether any testhost has reported the algorithm it computed ids with yet, so that the first
+    /// report is taken as the value rather than compared against one nobody has set.
+    /// </summary>
+    private bool _testCaseIdAlgorithmReported;
+
+    /// <summary>
     /// Set to initialized if any of the request is aborted
     /// </summary>
     public bool IsAborted { get; private set; }
@@ -39,6 +45,19 @@ internal sealed class DiscoveryDataAggregator
     /// Aggregate total test count
     /// </summary>
     public long TotalTests { get; private set; }
+
+    /// <summary>
+    /// The name of the algorithm that computed the ids of the discovered tests, when every
+    /// testhost that reported agreed on it, and <see langword="null"/> otherwise.
+    /// </summary>
+    /// <remarks>
+    /// The hosts of one run resolve this from the same input and so normally agree. They disagree
+    /// only when one of them predates the report and says nothing, and then a name for the whole
+    /// discovery would be a claim about ids nobody made - so the disagreement is reported as the
+    /// unknown it is, and stays unknown, because a name can never equal the <see langword="null"/>
+    /// it collapsed to.
+    /// </remarks>
+    public string? TestCaseIdAlgorithm { get; private set; }
 
     /// <summary>
     /// A collection of aggregated discovered extensions.
@@ -107,6 +126,16 @@ internal sealed class DiscoveryDataAggregator
 
             // Aggregate the discovered extensions.
             DiscoveredExtensions = TestExtensions.CreateMergedDictionary(DiscoveredExtensions, discoveryCompleteEventArgs.DiscoveredExtensions);
+
+            if (!_testCaseIdAlgorithmReported)
+            {
+                TestCaseIdAlgorithm = discoveryCompleteEventArgs.TestCaseIdAlgorithm;
+                _testCaseIdAlgorithmReported = true;
+            }
+            else if (TestCaseIdAlgorithm != discoveryCompleteEventArgs.TestCaseIdAlgorithm)
+            {
+                TestCaseIdAlgorithm = null;
+            }
         }
 
         AggregateMetrics(discoveryCompleteEventArgs.Metrics);
