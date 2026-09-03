@@ -149,22 +149,32 @@ public class MtpProxyDiscoveryManagerTests
     }
 
     /// <summary>
-    /// A run that declares nothing is reported as well, with the algorithm the runner's own
-    /// environment resolves to - which is what the test case falls back to when the converter is
-    /// handed no algorithm, so the report describes the ids that were actually produced.
+    /// A run that declares nothing is reported too, with the algorithm the runner's own environment
+    /// resolves to - which is what the test case falls back to when the converter is handed no
+    /// algorithm, so the report describes the ids that were actually produced.
     /// </summary>
+    /// <remarks>
+    /// Asserted against the algorithm the converter itself resolves from the same ambient
+    /// environment, rather than against "one of the two known names", which cannot fail.
+    /// </remarks>
     [TestMethod]
     public void DiscoverTestsReportsAnAlgorithmWhenTheRunDeclaresNothing()
     {
         DiscoveryCompleteEventArgs? args = ReportedCompletion("<RunSettings></RunSettings>");
 
+        // What an id computed with no declared algorithm actually used, derived from the production
+        // path rather than restated here, so this keeps holding after the default moves.
+        TestCase ambient = MtpTestNodeConverter.ToTestCase(ActionNode("uid-1", "TestOne"), Source, testCaseIdAlgorithm: null);
+        TestCase asSha1 = MtpTestNodeConverter.ToTestCase(
+            ActionNode("uid-1", "TestOne"),
+            Source,
+            MtpTestNodeConverter.ResolveTestCaseIdAlgorithm(new Dictionary<string, string?> { ["VSTEST_DISABLE_XXHASH128_TESTCASE_ID"] = "1" }));
+
+        string expected = ambient.Id == asSha1.Id ? "SHA1" : "xxHash128";
+
         Assert.IsNotNull(args);
         Assert.IsNotNull(args.TestCaseIdAlgorithms);
-
-        string reported = args.TestCaseIdAlgorithms[Source];
-        Assert.IsTrue(
-            reported is "SHA1" or "xxHash128",
-            $"A run that declares nothing reported '{reported}', which names no known algorithm.");
+        Assert.AreEqual(expected, args.TestCaseIdAlgorithms[Source]);
     }
 
     private DiscoveryCompleteEventArgs? ReportedCompletion(string runSettings)

@@ -236,6 +236,24 @@ public class DiscoveryManager : IDiscoveryManager
     /// because a client aggregates the sources of a whole solution, which several hosts discover -
     /// and those hosts can be different builds of the test platform, so they can disagree.
     /// </remarks>
+    /// <summary>
+    /// The algorithm that computed the ids of the tests in each source of
+    /// <paramref name="discoveryCriteria"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every source this process discovered had its ids computed by this process, so they all carry
+    /// the algorithm this process resolved. The value is still reported per source rather than once,
+    /// because a client aggregates the sources of a whole solution, which several hosts discover -
+    /// and those hosts can be different builds of the test platform, so they can disagree.
+    /// </para>
+    /// <para>
+    /// Keyed the way the reported test cases are keyed, so a client can match the two: a packaged
+    /// app reports every test case under the package rather than under the source it was found in,
+    /// exactly as <see cref="UpdateTestCases(IEnumerable{TestCase}, string?)"/> rewrites them, and
+    /// keys naming the inner sources would then match nothing a client ever sees.
+    /// </para>
+    /// </remarks>
     private static Dictionary<string, string>? BuildTestCaseIdAlgorithms(DiscoveryCriteria? discoveryCriteria)
     {
         if (discoveryCriteria?.Sources is null)
@@ -246,6 +264,15 @@ public class DiscoveryManager : IDiscoveryManager
         string algorithm = TestCaseIdAlgorithmResolver.AmbientName;
         var algorithms = new Dictionary<string, string>();
 
+        string? package = discoveryCriteria.Package;
+        if (!package.IsNullOrEmpty())
+        {
+            algorithms[package] = algorithm;
+            return algorithms;
+        }
+
+        // Indexer assignment rather than ToDictionary: the sources of a run are not necessarily
+        // distinct, and a duplicate must not throw in the middle of reporting a completed discovery.
         foreach (string source in discoveryCriteria.Sources)
         {
             algorithms[source] = algorithm;
@@ -255,8 +282,8 @@ public class DiscoveryManager : IDiscoveryManager
     }
 
     private void OnReportTestCases(ICollection<TestCase> testCases)
-    {        UpdateTestCases(testCases, _discoveryCriteria?.Package);
-
+    {
+        UpdateTestCases(testCases, _discoveryCriteria?.Package);
         if (_testDiscoveryEventsHandler != null)
         {
             _testDiscoveryEventsHandler.HandleDiscoveredTests(testCases);

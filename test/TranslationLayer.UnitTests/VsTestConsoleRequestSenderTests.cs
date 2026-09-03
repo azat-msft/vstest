@@ -513,6 +513,48 @@ public class VsTestConsoleRequestSenderTests
     }
 
     /// <summary>
+    /// The async path reports them too. It is a separate block of code from the sync one, and it is
+    /// the path Visual Studio actually drives.
+    /// </summary>
+    [TestMethod]
+    public async Task DiscoverTestsAsyncShouldReportTheTestCaseIdAlgorithms()
+    {
+        await InitializeCommunicationAsync();
+
+        var mockHandler = new Mock<ITestDiscoveryEventsHandler2>();
+
+        var payload = new DiscoveryCompletePayload
+        {
+            TotalTests = 1,
+            LastDiscoveredTests = null,
+            IsAborted = false,
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["1.dll"] = "xxHash128" },
+        };
+
+        var discoveryComplete = new Message()
+        {
+            MessageType = MessageType.DiscoveryComplete,
+            Version = _protocolVersion,
+            RawMessage = JsonDataSerializer.Instance.SerializePayload(MessageType.DiscoveryComplete, payload, _protocolVersion),
+        };
+
+        DiscoveryCompleteEventArgs? received = null;
+
+        _mockCommunicationManager
+            .Setup(cm => cm.ReceiveMessageAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult<Message?>(discoveryComplete));
+        mockHandler
+            .Setup(mh => mh.HandleDiscoveryComplete(It.IsAny<DiscoveryCompleteEventArgs>(), It.IsAny<IEnumerable<TestCase>>()))
+            .Callback((DiscoveryCompleteEventArgs args, IEnumerable<TestCase> _) => received = args);
+
+        await _requestSender.DiscoverTestsAsync(["1.dll"], null, new TestPlatformOptions(), null, mockHandler.Object);
+
+        Assert.IsNotNull(received);
+        Assert.IsNotNull(received.TestCaseIdAlgorithms);
+        Assert.AreEqual("xxHash128", received.TestCaseIdAlgorithms["1.dll"]);
+    }
+
+    /// <summary>
     /// Runs a discovery that completes with <paramref name="payload"/>, or with
     /// <paramref name="rawMessage"/> when the message is written out directly, and returns the
     /// completion the client was handed.

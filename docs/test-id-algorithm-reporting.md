@@ -24,8 +24,8 @@ path, on the discovery-completed event the TranslationLayer already hands you. E
 
 | Value | Meaning |
 |---|---|
-| `"SHA1"` | The ids for that source were computed with the legacy SHA1 algorithm. |
-| `"xxHash128"` | The ids for that source were computed with xxHash128. |
+| `"SHA1"` | Ids for that source that vstest computed were computed with the legacy SHA1 algorithm. |
+| `"xxHash128"` | Ids for that source that vstest computed were computed with xxHash128. |
 | source absent | Unknown - vstest is not vouching for that source's ids. |
 
 Four things are worth knowing about it:
@@ -33,6 +33,11 @@ Four things are worth knowing about it:
 - **It is the algorithm actually used**, resolved from environment variable, feature flag,
   runsettings and the built-in default. You do not need to reimplement that precedence or track
   changes to it.
+- **It describes the ids vstest computes**, not ids an adapter assigns itself. MSTest, for example,
+  sets `TestCase.Id` directly, so for an MSTest source the reported name describes an algorithm that
+  did not produce those ids. It is still reported for that source, and it still changes when vstest's
+  own algorithm changes - so acting on it costs an unnecessary re-discovery of such a source at the
+  transition, and never leaves a stale id behind.
 - **It is reported per source, not per run.** That is the granularity at which it can genuinely
   differ - see below.
 - **It is a name, not a boolean.** A third algorithm later is simply a third name. Treat a name you
@@ -41,7 +46,13 @@ Four things are worth knowing about it:
   every user.
 
 A source is absent when it was discovered by a vstest older than this change. The whole collection
-is absent on abort paths that discovered nothing at all.
+is absent only when vstest gave up before any discovery was attempted - a testhost that failed to
+launch, or a cancellation that arrived first.
+
+Note that a source is reported even when discovery of it aborted or found nothing: the name states
+which algorithm that host would have used, not that the source yielded tests. Erring this way is
+deliberate, since under the behaviour suggested below the cost of an extra entry is at worst one
+unnecessary re-discovery, whereas a missing one risks keeping a stale id.
 
 Both discovery paths report it: the classic vstest path and the Microsoft.Testing.Platform path.
 

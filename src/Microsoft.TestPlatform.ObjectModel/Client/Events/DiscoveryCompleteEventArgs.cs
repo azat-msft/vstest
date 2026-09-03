@@ -89,6 +89,12 @@ public class DiscoveryCompleteEventArgs : EventArgs
     /// showing every test twice.
     /// </para>
     /// <para>
+    /// It describes the ids the platform computes, not ids an adapter assigns itself: an adapter
+    /// that sets <see cref="TestCase.Id"/> directly is unaffected by this algorithm, and its sources
+    /// are reported all the same. Acting on the value then costs a re-discovery that changed
+    /// nothing, which is the harmless direction to err in.
+    /// </para>
+    /// <para>
     /// Reported per source rather than once for the whole discovery because that is the granularity
     /// at which it can differ. Each source is discovered by one host, but a solution can mix them:
     /// on .NET each test project brings its own testhost through its own package reference, so a
@@ -101,8 +107,8 @@ public class DiscoveryCompleteEventArgs : EventArgs
     /// A name rather than a boolean or an enum, so that an algorithm added later is a new name and a
     /// client that does not recognize a name can treat it the same way it treats a source that is
     /// absent: as ids it cannot vouch for. A source is absent when it was discovered by a version of
-    /// the test platform that predates this property, and the whole collection is empty on abort
-    /// paths that report no discovery at all.
+    /// the test platform that predates this property, and the whole collection is absent when no
+    /// discovery was attempted at all.
     /// </para>
     /// </remarks>
     [DataMember]

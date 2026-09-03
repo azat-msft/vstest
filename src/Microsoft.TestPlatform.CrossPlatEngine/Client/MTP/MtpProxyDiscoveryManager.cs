@@ -83,11 +83,32 @@ internal sealed class MtpProxyDiscoveryManager : IProxyDiscoveryManager, IDispos
                 // The declared value if the run declared one, and otherwise the runner's own
                 // environment - which is what the test case falls back to when the converter is
                 // handed no algorithm, so this is the algorithm that computed the ids either way.
-                TestCaseIdAlgorithms = sources.ToDictionary(
-                    source => source,
-                    _ => TestCaseIdAlgorithmResolver.ToName(_testCaseIdAlgorithm ?? TestCaseIdAlgorithmResolver.Ambient)),
+                TestCaseIdAlgorithms = BuildTestCaseIdAlgorithms(sources),
             },
             null);
+    }
+
+    /// <summary>
+    /// The algorithm the ids of each of <paramref name="sources"/> were computed with.
+    /// </summary>
+    /// <remarks>
+    /// Built with indexer assignment rather than <c>ToDictionary</c> because the sources of a run
+    /// are not necessarily distinct - <c>DiscoveryCriteria.Sources</c> concatenates the adapter
+    /// source map without removing duplicates, and the classic path warns about them rather than
+    /// rejecting them. Throwing here would escape before the discovery is ever reported complete,
+    /// leaving the run hanging rather than failing.
+    /// </remarks>
+    private Dictionary<string, string> BuildTestCaseIdAlgorithms(List<string> sources)
+    {
+        string algorithm = TestCaseIdAlgorithmResolver.ToName(_testCaseIdAlgorithm ?? TestCaseIdAlgorithmResolver.Ambient);
+        var algorithms = new Dictionary<string, string>();
+
+        foreach (string source in sources)
+        {
+            algorithms[source] = algorithm;
+        }
+
+        return algorithms;
     }
 
     public void Abort() => _cancellationTokenSource.Cancel();

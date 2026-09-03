@@ -103,7 +103,6 @@ public class DiscoveryDataAggregatorTests
         Assert.IsNotNull(algorithms);
         Assert.HasCount(1, algorithms);
         Assert.AreEqual("xxHash128", algorithms["new.dll"]);
-        Assert.IsFalse(algorithms.ContainsKey("old.dll"), "A source nobody reported must stay absent.");
     }
 
     /// <summary>

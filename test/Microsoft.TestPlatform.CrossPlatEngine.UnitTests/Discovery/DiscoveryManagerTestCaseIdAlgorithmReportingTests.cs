@@ -85,15 +85,59 @@ public class DiscoveryManagerTestCaseIdAlgorithmReportingTests
     /// This is the case the whole feature exists for. The transition that hurts a client's cache
     /// most is the default flipping between releases, which happens with no flag set and no user
     /// action - so a run that says nothing is exactly the run whose algorithm has to be reported.
+    /// The value itself is pinned by <see cref="TheDefaultIsCurrentlyReportedAsSha1"/>; this asserts
+    /// only that something is reported at all.
     /// </remarks>
     [TestMethod]
     public void DiscoveryReportsTheDefaultWhenTheRunDeclaresNothing()
-    {
-        string? reported = ReportedAlgorithmWithFlag(null);
+        => Assert.IsNotNull(ReportedAlgorithmWithFlag(null));
 
+    /// <summary>
+    /// A packaged app reports every test case under its package, so the keys name the package too.
+    /// </summary>
+    /// <remarks>
+    /// The invariant the whole feature rests on is that a key names what a client sees as
+    /// <see cref="TestCase.Source"/>. Two things rewrite that between discovery and the client, and
+    /// each has its own test: the package substitution here, and the deployment path conversion in
+    /// TestRequestHandlerTestCaseIdAlgorithmPathTests. Asserting the invariant end to end against a
+    /// discovered test case is not possible here, because the mock adapter the discovery tests use
+    /// fabricates its own source rather than reporting the one it was given.
+    /// </remarks>
+    [TestMethod]
+    public void ReportedAlgorithmIsKeyedByThePackageWhenTheRunHasOne()
+    {
+        const string package = @"C:\apps\Contoso.appx";
+
+        DiscoveryCompleteEventArgs? args = null;
+        var handler = new Mock<ITestDiscoveryEventsHandler2>();
+        handler
+            .Setup(h => h.HandleDiscoveryComplete(It.IsAny<DiscoveryCompleteEventArgs>(), It.IsAny<IEnumerable<TestCase>>()))
+            .Callback((DiscoveryCompleteEventArgs complete, IEnumerable<TestCase>? _) => args = complete);
+
+        RunWithFlag(null, () =>
+        {
+            TestPluginCacheHelper.SetupMockExtensions([typeof(DiscovererEnumeratorTests).Assembly.Location], () => { });
+
+            var criteria = new DiscoveryCriteria([TestSource], 1, null) { Package = package };
+
+            new DiscoveryManager(NonTelemetryRequestData()).DiscoverTests(criteria, handler.Object);
+        });
+
+        Assert.IsNotNull(args);
+        Assert.IsNotNull(args.TestCaseIdAlgorithms);
         Assert.IsTrue(
-            reported is Sha1Name or XxHash128Name,
-            $"A run that declares nothing reported '{reported}', which names no known algorithm.");
+            args.TestCaseIdAlgorithms.ContainsKey(package),
+            $"Expected the package as the key, got: {string.Join(", ", args.TestCaseIdAlgorithms.Keys)}");
+        Assert.IsFalse(
+            args.TestCaseIdAlgorithms.ContainsKey(TestSource),
+            "The inner source is not what a client sees on the test cases, so it must not be a key.");
+    }
+
+    private static IRequestData NonTelemetryRequestData()
+    {
+        var requestData = new Mock<IRequestData>();
+        requestData.Setup(rd => rd.MetricsCollection).Returns(new NoOpMetricsCollection());
+        return requestData.Object;
     }
 
     /// <summary>
