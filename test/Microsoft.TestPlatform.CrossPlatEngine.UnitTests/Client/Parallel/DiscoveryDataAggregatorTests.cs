@@ -50,54 +50,98 @@ public class DiscoveryDataAggregatorTests
     }
 
     /// <summary>
-    /// The hosts of one run resolve the algorithm from the same input, so the aggregate is simply
-    /// the value they all reported.
+    /// Sources discovered by different hosts are merged, so a solution whose projects are on
+    /// different testhosts keeps a usable answer for each of them.
     /// </summary>
     [TestMethod]
-    public void AggregateShouldReportTheTestCaseIdAlgorithmEveryHostAgreedOn()
+    public void AggregateShouldMergeTheTestCaseIdAlgorithmsOfEveryHost()
     {
         var aggregator = new DiscoveryDataAggregator();
 
-        aggregator.Aggregate(new(totalTests: 2, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
-        aggregator.Aggregate(new(totalTests: 3, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["A.dll"] = "xxHash128" },
+        });
+        aggregator.Aggregate(new(totalTests: 3, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["B.dll"] = "SHA1" },
+        });
 
-        Assert.AreEqual("xxHash128", aggregator.TestCaseIdAlgorithm);
+        Dictionary<string, string>? algorithms = aggregator.GetTestCaseIdAlgorithms();
+
+        Assert.IsNotNull(algorithms);
+        Assert.HasCount(2, algorithms);
+        Assert.AreEqual("xxHash128", algorithms["A.dll"]);
+        Assert.AreEqual("SHA1", algorithms["B.dll"]);
     }
 
     /// <summary>
-    /// Hosts that disagree leave the run's ids unaccounted for, and that is reported as the unknown
-    /// it is rather than as whichever host happened to report first.
+    /// A host that predates the report leaves its own sources out, and does not take its
+    /// neighbours' sources down with it.
     /// </summary>
     /// <remarks>
-    /// The realistic way to reach this is one host that predates the report and says nothing at all.
-    /// A client reading no name re-discovers, which costs a discovery; a client reading a name that
-    /// only some of the ids were computed with would keep the ones that were not.
+    /// This is the case that made reporting per source worth it. Reduced to one value for the run,
+    /// a single old testhost in a solution would make every discovery unaccounted for, and a client
+    /// caching by test id would have to re-discover everything on every single run - or ignore the
+    /// disagreement and miss the project whose ids did change.
     /// </remarks>
     [TestMethod]
-    public void AggregateShouldReportNoTestCaseIdAlgorithmWhenHostsDisagree()
+    public void AggregateShouldKeepTheSourcesReportedByHostsThatDoReportOne()
     {
         var aggregator = new DiscoveryDataAggregator();
 
-        aggregator.Aggregate(new(totalTests: 2, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
-        aggregator.Aggregate(new(totalTests: 3, isAborted: false) { TestCaseIdAlgorithm = null });
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["new.dll"] = "xxHash128" },
+        });
 
-        Assert.IsNull(aggregator.TestCaseIdAlgorithm);
+        // An older testhost reports no algorithms at all.
+        aggregator.Aggregate(new(totalTests: 3, isAborted: false));
+
+        Dictionary<string, string>? algorithms = aggregator.GetTestCaseIdAlgorithms();
+
+        Assert.IsNotNull(algorithms);
+        Assert.HasCount(1, algorithms);
+        Assert.AreEqual("xxHash128", algorithms["new.dll"]);
+        Assert.IsFalse(algorithms.ContainsKey("old.dll"), "A source nobody reported must stay absent.");
     }
 
     /// <summary>
-    /// And a later host that agrees with the others does not talk the aggregate back into a name the
-    /// whole run cannot stand behind.
+    /// Nothing reported at all reads as no information, rather than as an empty collection a client
+    /// could mistake for "no source used any algorithm".
     /// </summary>
     [TestMethod]
-    public void AggregateShouldKeepReportingNoTestCaseIdAlgorithmAfterHostsDisagreed()
+    public void AggregateShouldReportNoTestCaseIdAlgorithmsWhenNoHostReportsOne()
     {
         var aggregator = new DiscoveryDataAggregator();
 
-        aggregator.Aggregate(new(totalTests: 2, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
-        aggregator.Aggregate(new(totalTests: 3, isAborted: false) { TestCaseIdAlgorithm = null });
-        aggregator.Aggregate(new(totalTests: 4, isAborted: false) { TestCaseIdAlgorithm = "xxHash128" });
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false));
 
-        Assert.IsNull(aggregator.TestCaseIdAlgorithm);
+        Assert.IsNull(aggregator.GetTestCaseIdAlgorithms());
+    }
+
+    /// <summary>
+    /// The result is a copy, so a caller holding it does not see later aggregation change it.
+    /// </summary>
+    [TestMethod]
+    public void GetTestCaseIdAlgorithmsShouldReturnACopy()
+    {
+        var aggregator = new DiscoveryDataAggregator();
+
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["A.dll"] = "SHA1" },
+        });
+
+        Dictionary<string, string>? first = aggregator.GetTestCaseIdAlgorithms();
+
+        aggregator.Aggregate(new(totalTests: 1, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["B.dll"] = "SHA1" },
+        });
+
+        Assert.IsNotNull(first);
+        Assert.HasCount(1, first);
     }
 
     [TestMethod]

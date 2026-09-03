@@ -17,8 +17,8 @@ using Moq;
 namespace TestPlatform.CrossPlatEngine.UnitTests.Discovery;
 
 /// <summary>
-/// Covers the algorithm name <see cref="DiscoveryManager"/> reports on
-/// <see cref="DiscoveryCompleteEventArgs.TestCaseIdAlgorithm"/>, which is how a client that caches
+/// Covers the algorithm names <see cref="DiscoveryManager"/> reports on
+/// <see cref="DiscoveryCompleteEventArgs.TestCaseIdAlgorithms"/>, which is how a client that caches
 /// discovery results by test id learns that the ids it holds are no longer the ids discovery
 /// produces.
 /// </summary>
@@ -39,6 +39,9 @@ public class DiscoveryManagerTestCaseIdAlgorithmReportingTests
     // them: if these change, every stored stamp stops matching and this test is the warning.
     private const string Sha1Name = "SHA1";
     private const string XxHash128Name = "xxHash128";
+
+    // The one source these discoveries run against, and therefore the one key in the reported map.
+    private static string TestSource => typeof(DiscoveryManagerTestCaseIdAlgorithmReportingTests).Assembly.Location;
 
     [TestCleanup]
     public void TestCleanup()
@@ -125,10 +128,11 @@ public class DiscoveryManagerTestCaseIdAlgorithmReportingTests
     }
 
     /// <summary>
-    /// An aborted discovery reports it too, because a client is told about the ids it did receive.
+    /// Aborting before discovery started reports nothing, because there is no source whose ids
+    /// could be described.
     /// </summary>
     [TestMethod]
-    public void AbortedDiscoveryReportsTheAlgorithmAsWell()
+    public void AbortBeforeDiscoveryStartedReportsNoAlgorithms()
     {
         DiscoveryCompleteEventArgs? args = null;
         var handler = new Mock<ITestDiscoveryEventsHandler2>();
@@ -145,12 +149,12 @@ public class DiscoveryManagerTestCaseIdAlgorithmReportingTests
         });
 
         Assert.IsNotNull(args);
-        Assert.AreEqual(XxHash128Name, args.TestCaseIdAlgorithm);
+        Assert.IsNull(args.TestCaseIdAlgorithms);
     }
 
     /// <summary>
     /// Runs a discovery with the feature flag set to <paramref name="value"/> and returns the
-    /// algorithm name it reported.
+    /// algorithm name it reported for the one source it discovered.
     /// </summary>
     private static string? ReportedAlgorithmWithFlag(string? value, IRequestData? requestData = null)
     {
@@ -173,13 +177,18 @@ public class DiscoveryManagerTestCaseIdAlgorithmReportingTests
                 [typeof(DiscovererEnumeratorTests).Assembly.Location],
                 () => { });
 
-            var criteria = new DiscoveryCriteria([typeof(DiscoveryManagerTestCaseIdAlgorithmReportingTests).Assembly.Location], 1, null);
+            var criteria = new DiscoveryCriteria([TestSource], 1, null);
 
             new DiscoveryManager(requestData).DiscoverTests(criteria, handler.Object);
         });
 
         Assert.IsNotNull(args, "Discovery did not report completion.");
-        return args.TestCaseIdAlgorithm;
+        Assert.IsNotNull(args.TestCaseIdAlgorithms, "Discovery reported no algorithms.");
+
+        // One source, so the map describes exactly it - a second entry would mean the report
+        // covered something this discovery never looked at.
+        Assert.HasCount(1, args.TestCaseIdAlgorithms);
+        return args.TestCaseIdAlgorithms[TestSource];
     }
 
     private static void RunWithFlag(string? value, Action action)

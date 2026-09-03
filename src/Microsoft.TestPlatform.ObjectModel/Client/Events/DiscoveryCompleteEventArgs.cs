@@ -77,8 +77,8 @@ public class DiscoveryCompleteEventArgs : EventArgs
     public Dictionary<string, HashSet<string>>? DiscoveredExtensions { get; set; } = new();
 
     /// <summary>
-    /// Gets or sets the name of the algorithm that computed the ids of the tests this discovery
-    /// reported, e.g. <c>SHA1</c> or <c>xxHash128</c>.
+    /// Gets or sets the algorithm that computed the ids of the tests discovered in each source,
+    /// keyed by source path, with values such as <c>SHA1</c> or <c>xxHash128</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -89,17 +89,24 @@ public class DiscoveryCompleteEventArgs : EventArgs
     /// showing every test twice.
     /// </para>
     /// <para>
-    /// A name rather than a boolean or an enum, so that an algorithm added later is a new name and
-    /// a client that does not recognize a name can treat it the same way it treats
-    /// <see langword="null"/>: as ids it cannot vouch for.
+    /// Reported per source rather than once for the whole discovery because that is the granularity
+    /// at which it can differ. Each source is discovered by one host, but a solution can mix them:
+    /// on .NET each test project brings its own testhost through its own package reference, so a
+    /// project still on an older one computes ids the way it always did while its neighbour moves to
+    /// a new algorithm. One value for the run would have to collapse that disagreement, leaving a
+    /// client to either re-discover everything on every run or miss the source that did change.
+    /// Keyed per source, only the entries of a source whose algorithm moved need to be dropped.
     /// </para>
     /// <para>
-    /// <see langword="null"/> when the discovery was performed by a version of the test platform
-    /// that predates this property, and on some abort paths that report no discovery at all.
+    /// A name rather than a boolean or an enum, so that an algorithm added later is a new name and a
+    /// client that does not recognize a name can treat it the same way it treats a source that is
+    /// absent: as ids it cannot vouch for. A source is absent when it was discovered by a version of
+    /// the test platform that predates this property, and the whole collection is empty on abort
+    /// paths that report no discovery at all.
     /// </para>
     /// </remarks>
     [DataMember]
     // Additive: a peer that predates this property ignores it on the way in and never sets it on
     // the way out, at every negotiated protocol version.
-    public string? TestCaseIdAlgorithm { get; set; }
+    public IDictionary<string, string>? TestCaseIdAlgorithms { get; set; }
 }

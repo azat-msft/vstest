@@ -83,7 +83,9 @@ internal sealed class MtpProxyDiscoveryManager : IProxyDiscoveryManager, IDispos
                 // The declared value if the run declared one, and otherwise the runner's own
                 // environment - which is what the test case falls back to when the converter is
                 // handed no algorithm, so this is the algorithm that computed the ids either way.
-                TestCaseIdAlgorithm = TestCaseIdAlgorithmResolver.ToName(_testCaseIdAlgorithm ?? TestCaseIdAlgorithmResolver.Ambient),
+                TestCaseIdAlgorithms = sources.ToDictionary(
+                    source => source,
+                    _ => TestCaseIdAlgorithmResolver.ToName(_testCaseIdAlgorithm ?? TestCaseIdAlgorithmResolver.Ambient)),
             },
             null);
     }

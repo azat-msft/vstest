@@ -180,7 +180,9 @@ public class DiscoveryManager : IDiscoveryManager
                     SkippedDiscoveredSources = _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.SkippedDiscovery),
                     DiscoveredExtensions = TestPluginCache.Instance.TestExtensions?.GetCachedExtensions(),
                     Metrics = _requestData.MetricsCollection.Metrics,
-                    TestCaseIdAlgorithm = TestCaseIdAlgorithmResolver.AmbientName,
+                    // Every source this host discovered had its ids computed by this process, so
+                    // they all carry the algorithm this process resolved.
+                    TestCaseIdAlgorithms = BuildTestCaseIdAlgorithms(discoveryCriteria),
                 };
 
                 eventHandler.HandleDiscoveryComplete(discoveryCompleteEventsArgs, lastChunk);
@@ -219,14 +221,41 @@ public class DiscoveryManager : IDiscoveryManager
             PartiallyDiscoveredSources = _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered),
             NotDiscoveredSources = _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered),
             SkippedDiscoveredSources = _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.SkippedDiscovery),
-            TestCaseIdAlgorithm = TestCaseIdAlgorithmResolver.AmbientName,
+            TestCaseIdAlgorithms = BuildTestCaseIdAlgorithms(_discoveryCriteria),
         };
         eventHandler.HandleDiscoveryComplete(discoveryCompleteEventArgs, null);
     }
 
-    private void OnReportTestCases(ICollection<TestCase> testCases)
+    /// <summary>
+    /// The algorithm that computed the ids of the tests in each source of
+    /// <paramref name="discoveryCriteria"/>.
+    /// </summary>
+    /// <remarks>
+    /// Every source this process discovered had its ids computed by this process, so they all carry
+    /// the algorithm this process resolved. The value is still reported per source rather than once,
+    /// because a client aggregates the sources of a whole solution, which several hosts discover -
+    /// and those hosts can be different builds of the test platform, so they can disagree.
+    /// </remarks>
+    private static Dictionary<string, string>? BuildTestCaseIdAlgorithms(DiscoveryCriteria? discoveryCriteria)
     {
-        UpdateTestCases(testCases, _discoveryCriteria?.Package);
+        if (discoveryCriteria?.Sources is null)
+        {
+            return null;
+        }
+
+        string algorithm = TestCaseIdAlgorithmResolver.AmbientName;
+        var algorithms = new Dictionary<string, string>();
+
+        foreach (string source in discoveryCriteria.Sources)
+        {
+            algorithms[source] = algorithm;
+        }
+
+        return algorithms.Count > 0 ? algorithms : null;
+    }
+
+    private void OnReportTestCases(ICollection<TestCase> testCases)
+    {        UpdateTestCases(testCases, _discoveryCriteria?.Package);
 
         if (_testDiscoveryEventsHandler != null)
         {

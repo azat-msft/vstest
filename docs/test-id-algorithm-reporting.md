@@ -19,36 +19,52 @@ Test Explorer can stamp that on the store and drop the store when it changes.
 
 ## What vstest reports
 
-`DiscoveryCompleteEventArgs.TestCaseIdAlgorithm`, a `string?`, on the discovery-completed event the
-TranslationLayer already hands you. It carries one of:
+`DiscoveryCompleteEventArgs.TestCaseIdAlgorithms`, an `IDictionary<string, string>?` keyed by source
+path, on the discovery-completed event the TranslationLayer already hands you. Each value is one of:
 
 | Value | Meaning |
 |---|---|
-| `"SHA1"` | The ids in this discovery were computed with the legacy SHA1 algorithm. |
-| `"xxHash128"` | The ids in this discovery were computed with xxHash128. |
-| `null` | Unknown — vstest is not vouching for these ids. |
+| `"SHA1"` | The ids for that source were computed with the legacy SHA1 algorithm. |
+| `"xxHash128"` | The ids for that source were computed with xxHash128. |
+| source absent | Unknown - vstest is not vouching for that source's ids. |
 
-Three things are worth knowing about it:
+Four things are worth knowing about it:
 
 - **It is the algorithm actually used**, resolved from environment variable, feature flag,
   runsettings and the built-in default. You do not need to reimplement that precedence or track
   changes to it.
+- **It is reported per source, not per run.** That is the granularity at which it can genuinely
+  differ - see below.
 - **It is a name, not a boolean.** A third algorithm later is simply a third name. Treat a name you
-  do not recognize exactly as you treat `null`.
+  do not recognize exactly as you treat an absent source.
 - **It does not depend on telemetry opt-in.** This is a correctness signal, so it is reported for
   every user.
 
-`null` happens when the discovery came from a vstest older than this change, or when the testhosts
-of one parallel run did not agree (in practice: one of them was older). It is not an error, but ids
-behind it cannot be matched against a stamp.
+A source is absent when it was discovered by a vstest older than this change. The whole collection
+is absent on abort paths that discovered nothing at all.
 
 Both discovery paths report it: the classic vstest path and the Microsoft.Testing.Platform path.
+
+## Why per source
+
+A single value for the whole discovery would not work, because one solution can legitimately use
+several algorithms at once.
+
+On .NET, each test project brings its own testhost through its own `Microsoft.NET.Test.Sdk`
+reference, and vstest launches one testhost per project. A solution where one project is pinned to
+an older test SDK therefore runs a mix: that project keeps computing ids the way it always did while
+its neighbours move to the new algorithm. Reduced to one value, such a run could only report
+"unknown", leaving you two bad options - re-discover the whole solution on every single run, or
+ignore the unknown and miss the projects whose ids really did change.
+
+Keyed per source, that solution is unremarkable: the stale project reports its own algorithm (or is
+absent), the others report theirs, and only the sources that actually changed need re-discovering.
 
 ## The message on the wire
 
 The value is a new property on the payload of the existing `TestDiscovery.Completed` message. The
 two fields that matter here are the per-test `Id`, which is what the store is keyed by, and
-`TestCaseIdAlgorithm`, which says how every one of those ids was computed:
+`TestCaseIdAlgorithms`, which says how the ids of each source were computed:
 
 ```jsonc
 {
@@ -62,7 +78,7 @@ two fields that matter here are the per-test `Id`, which is what the store is ke
         "FullyQualifiedName": "Contoso.Math.Tests.CalculatorTests.SubtractTest",
         "DisplayName": "SubtractTest",
         "ExecutorUri": "executor://MSTestAdapter/v2",
-        "Source": "Contoso.Math.Tests.dll",
+        "Source": "Contoso.Math.Tests.dll",                // the key into the map below
         "CodeFilePath": null,
         "LineNumber": -1,
         "Properties": []
@@ -76,31 +92,33 @@ two fields that matter here are the per-test `Id`, which is what the store is ke
     "SkippedDiscoverySources": [],
     "DiscoveredExtensions": {},
 
-    "TestCaseIdAlgorithm": "SHA1"   // NEW: "SHA1", "xxHash128", or absent/null
+    // NEW. Values are "SHA1" or "xxHash128"; a source vstest cannot vouch for is simply absent,
+    // and the whole property is absent from a peer that predates it.
+    "TestCaseIdAlgorithms": {
+      "Contoso.Math.Tests.dll": "SHA1"
+    }
   }
 }
 ```
 
-Everything except the last line is unchanged. `TestCaseIdAlgorithm` describes the whole discovery,
-not one test case, so it sits on the payload rather than on each test: it is a property of the run,
-and it is still reported when a discovery returns no tests at all.
-
-Note that `LastDiscoveredTests` only carries the final batch — earlier tests arrive in preceding
-`TestDiscovery.TestFound` messages. The algorithm applies to all of them.
+Everything except `TestCaseIdAlgorithms` is unchanged. Note that `LastDiscoveredTests` carries only
+the final batch - earlier tests arrive in preceding `TestDiscovery.TestFound` messages, which have
+no algorithm field. The single map in `TestDiscovery.Completed` covers every test of every source it
+names.
 
 ## Suggested Test Explorer behaviour
 
-1. Store the reported name alongside the test store, once for the whole store rather than per test.
-2. On discovery, compare the reported name with the stored one.
-3. If they differ — including when either is `null` or a name you do not recognize — discard the
-   store and re-discover once. Do not try to merge or migrate: the old ids cannot be mapped to the
-   new ones, since the point is that the hash changed.
-4. If they match, carry on as today.
-5. When there is no stamp yet, record the reported name. Whether you also invalidate once at that
-   point is your call; invalidating is safer and costs one discovery.
+1. Store the reported name per source alongside the test store.
+2. On discovery, compare each source's reported name with the stored one.
+3. If a source's name differs - including when it is absent now, was absent before, or is a name you
+   do not recognize - drop that source's entries and re-discover it. Do not try to merge or migrate:
+   old ids cannot be mapped to new ones, since the point is that the hash changed.
+4. Leave the sources whose names match alone.
+5. When a source has no stamp yet, record the reported name. Whether you also invalidate that source
+   once at that point is your call; invalidating is safer and costs one discovery of one source.
 
-For a user who never touches the feature flag, this should fire exactly once: on the first discovery
-after taking the vstest release that flips the default.
+For a user who never touches the feature flag, this should fire exactly once per source: on the
+first discovery after taking the vstest release that flips the default.
 
 ## Why not read the algorithm off the ids
 
@@ -137,7 +155,7 @@ protocol version, with no version bump:
 
 - **New vstest, old Visual Studio.** The extra field is ignored. Nothing breaks; you do not see the
   value.
-- **Old vstest, new Visual Studio.** The field is absent, so the value is `null` — which already
+- **Old vstest, new Visual Studio.** The field is absent, so every source is unknown — which already
   means "cannot vouch for these ids".
 
 ## Open questions and things we did not verify

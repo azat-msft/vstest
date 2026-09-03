@@ -125,7 +125,8 @@ public class MtpProxyDiscoveryManagerTests
             """);
 
         Assert.IsNotNull(args);
-        Assert.AreEqual("xxHash128", args.TestCaseIdAlgorithm);
+        Assert.IsNotNull(args.TestCaseIdAlgorithms);
+        Assert.AreEqual("xxHash128", args.TestCaseIdAlgorithms[Source]);
     }
 
     [TestMethod]
@@ -143,7 +144,8 @@ public class MtpProxyDiscoveryManagerTests
             """);
 
         Assert.IsNotNull(args);
-        Assert.AreEqual("SHA1", args.TestCaseIdAlgorithm);
+        Assert.IsNotNull(args.TestCaseIdAlgorithms);
+        Assert.AreEqual("SHA1", args.TestCaseIdAlgorithms[Source]);
     }
 
     /// <summary>
@@ -157,9 +159,12 @@ public class MtpProxyDiscoveryManagerTests
         DiscoveryCompleteEventArgs? args = ReportedCompletion("<RunSettings></RunSettings>");
 
         Assert.IsNotNull(args);
+        Assert.IsNotNull(args.TestCaseIdAlgorithms);
+
+        string reported = args.TestCaseIdAlgorithms[Source];
         Assert.IsTrue(
-            args.TestCaseIdAlgorithm is "SHA1" or "xxHash128",
-            $"A run that declares nothing reported '{args.TestCaseIdAlgorithm}', which names no known algorithm.");
+            reported is "SHA1" or "xxHash128",
+            $"A run that declares nothing reported '{reported}', which names no known algorithm.");
     }
 
     private DiscoveryCompleteEventArgs? ReportedCompletion(string runSettings)

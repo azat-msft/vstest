@@ -662,7 +662,7 @@ public class TestRequestSender : ITestRequestSender
                         NotDiscoveredSources = payload.NotDiscoveredSources,
                         DiscoveredExtensions = payload.DiscoveredExtensions,
                         SkippedDiscoveredSources = payload.SkippedDiscoverySources,
-                        TestCaseIdAlgorithm = payload.TestCaseIdAlgorithm,
+                        TestCaseIdAlgorithms = payload.TestCaseIdAlgorithms,
                     };
 
                     discoveryCompleteEventArgs.Metrics = payload.Metrics;

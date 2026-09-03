@@ -132,7 +132,9 @@ public class DiscoveryCompleteSerializationTests
             "NotDiscoveredSources": [],
             "SkippedDiscoverySources": [],
             "DiscoveredExtensions": {},
-            "TestCaseIdAlgorithm": "SHA1"
+            "TestCaseIdAlgorithms": {
+              "Contoso.Math.Tests.dll": "SHA1"
+            }
           }
         }
         """;
@@ -166,7 +168,9 @@ public class DiscoveryCompleteSerializationTests
             "NotDiscoveredSources": [],
             "SkippedDiscoverySources": [],
             "DiscoveredExtensions": {},
-            "TestCaseIdAlgorithm": "SHA1"
+            "TestCaseIdAlgorithms": {
+              "Contoso.Math.Tests.dll": "SHA1"
+            }
           }
         }
         """;
@@ -249,7 +253,7 @@ public class DiscoveryCompleteSerializationTests
                 }
             },
             Metrics = new Dictionary<string, object> { ["TotalTestsDiscovered"] = 150 },
-            TestCaseIdAlgorithm = "SHA1",
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["Contoso.Math.Tests.dll"] = "SHA1" },
         };
     }
 
@@ -266,7 +270,8 @@ public class DiscoveryCompleteSerializationTests
         Assert.AreEqual("Contoso.Math.Tests.dll", tests[0].Source);
         Assert.AreEqual("SubtractTest", tests[0].DisplayName);
         Assert.AreEqual(new Guid("b2c3d4e5-f6a7-8901-bcde-f12345678901"), tests[0].Id);
-        Assert.AreEqual("SHA1", result.TestCaseIdAlgorithm);
+        Assert.IsNotNull(result.TestCaseIdAlgorithms);
+        Assert.AreEqual("SHA1", result.TestCaseIdAlgorithms["Contoso.Math.Tests.dll"]);
     }
 
     /// <summary>
@@ -274,7 +279,7 @@ public class DiscoveryCompleteSerializationTests
     /// failing to deserialize or inventing a value.
     /// </summary>
     [TestMethod]
-    public void DeserializePayloadWithoutTestCaseIdAlgorithm()
+    public void DeserializePayloadWithoutTestCaseIdAlgorithms()
     {
         const string json = """
             {"Version":7,"MessageType":"TestDiscovery.Completed","Payload":{"TotalTests":150,"IsAborted":false}}
@@ -285,7 +290,7 @@ public class DiscoveryCompleteSerializationTests
 
         Assert.IsNotNull(result);
         Assert.AreEqual(150, result.TotalTests);
-        Assert.IsNull(result.TestCaseIdAlgorithm);
+        Assert.IsNull(result.TestCaseIdAlgorithms);
     }
 
 }

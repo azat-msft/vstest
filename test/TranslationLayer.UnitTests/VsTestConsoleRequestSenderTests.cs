@@ -476,29 +476,32 @@ public class VsTestConsoleRequestSenderTests
     }
 
     /// <summary>
-    /// The algorithm vstest.console reports reaches the client, so a client that caches discovery
+    /// The algorithms vstest.console reports reach the client, so a client that caches discovery
     /// results by test id can tell whether the ids it holds are still the ids discovery produces.
     /// </summary>
     [TestMethod]
-    public void DiscoverTestsShouldReportTheTestCaseIdAlgorithm()
+    public void DiscoverTestsShouldReportTheTestCaseIdAlgorithms()
     {
         var payload = new DiscoveryCompletePayload
         {
             TotalTests = 1,
             LastDiscoveredTests = null,
             IsAborted = false,
-            TestCaseIdAlgorithm = "xxHash128",
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["1.dll"] = "xxHash128" },
         };
 
-        Assert.AreEqual("xxHash128", ReportedCompletion(payload).TestCaseIdAlgorithm);
+        IDictionary<string, string>? reported = ReportedCompletion(payload).TestCaseIdAlgorithms;
+
+        Assert.IsNotNull(reported);
+        Assert.AreEqual("xxHash128", reported["1.dll"]);
     }
 
     /// <summary>
-    /// A vstest.console old enough not to report it says nothing rather than something wrong, and
+    /// A vstest.console old enough not to report them says nothing rather than something wrong, and
     /// the client is left to treat the ids as ids it cannot vouch for.
     /// </summary>
     [TestMethod]
-    public void DiscoverTestsShouldReportNoTestCaseIdAlgorithmFromAConsoleThatDoesNotSendOne()
+    public void DiscoverTestsShouldReportNoTestCaseIdAlgorithmsFromAConsoleThatDoesNotSendThem()
     {
         // Hand-written rather than serialized from a payload, because the point is a message in
         // which the property is absent altogether, not one in which it is present and null.
@@ -506,7 +509,7 @@ public class VsTestConsoleRequestSenderTests
             {"Version":7,"MessageType":"TestDiscovery.Completed","Payload":{"TotalTests":1,"IsAborted":false}}
             """;
 
-        Assert.IsNull(ReportedCompletion(rawMessage: rawMessageWithoutAlgorithm).TestCaseIdAlgorithm);
+        Assert.IsNull(ReportedCompletion(rawMessage: rawMessageWithoutAlgorithm).TestCaseIdAlgorithms);
     }
 
     /// <summary>

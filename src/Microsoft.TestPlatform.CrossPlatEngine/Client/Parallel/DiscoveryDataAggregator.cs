@@ -31,12 +31,6 @@ internal sealed class DiscoveryDataAggregator
     private int _isMessageSent;
 
     /// <summary>
-    /// Whether any testhost has reported the algorithm it computed ids with yet, so that the first
-    /// report is taken as the value rather than compared against one nobody has set.
-    /// </summary>
-    private bool _testCaseIdAlgorithmReported;
-
-    /// <summary>
     /// Set to initialized if any of the request is aborted
     /// </summary>
     public bool IsAborted { get; private set; }
@@ -47,17 +41,34 @@ internal sealed class DiscoveryDataAggregator
     public long TotalTests { get; private set; }
 
     /// <summary>
-    /// The name of the algorithm that computed the ids of the discovered tests, when every
-    /// testhost that reported agreed on it, and <see langword="null"/> otherwise.
+    /// The algorithm that computed the ids of the tests in each source, keyed by source path.
     /// </summary>
     /// <remarks>
-    /// The hosts of one run resolve this from the same input and so normally agree. They disagree
-    /// only when one of them predates the report and says nothing, and then a name for the whole
-    /// discovery would be a claim about ids nobody made - so the disagreement is reported as the
-    /// unknown it is, and stays unknown, because a name can never equal the <see langword="null"/>
-    /// it collapsed to.
+    /// Merged across hosts rather than reduced to one value for the run, because the hosts of one
+    /// run can be different builds of the test platform - on .NET each test project brings its own
+    /// testhost through its own package reference - and so can genuinely disagree. A source
+    /// discovered by a host that predates the report is simply absent, which leaves the sources its
+    /// neighbours did account for usable instead of dragging the whole run down to unknown.
     /// </remarks>
-    public string? TestCaseIdAlgorithm { get; private set; }
+    private Dictionary<string, string> TestCaseIdAlgorithms { get; } = new();
+
+    /// <summary>
+    /// Returns the algorithm that computed the ids of the tests in each source, keyed by source
+    /// path, or <see langword="null"/> when no host reported one.
+    /// </summary>
+    /// <remarks>
+    /// A copy, like the other aggregated collections this class hands out, so that a caller holding
+    /// the result cannot observe it change underneath.
+    /// </remarks>
+    public Dictionary<string, string>? GetTestCaseIdAlgorithms()
+    {
+        lock (_dataUpdateSyncObject)
+        {
+            return TestCaseIdAlgorithms.Count > 0
+                ? new Dictionary<string, string>(TestCaseIdAlgorithms)
+                : null;
+        }
+    }
 
     /// <summary>
     /// A collection of aggregated discovered extensions.
@@ -127,14 +138,12 @@ internal sealed class DiscoveryDataAggregator
             // Aggregate the discovered extensions.
             DiscoveredExtensions = TestExtensions.CreateMergedDictionary(DiscoveredExtensions, discoveryCompleteEventArgs.DiscoveredExtensions);
 
-            if (!_testCaseIdAlgorithmReported)
+            if (discoveryCompleteEventArgs.TestCaseIdAlgorithms is not null)
             {
-                TestCaseIdAlgorithm = discoveryCompleteEventArgs.TestCaseIdAlgorithm;
-                _testCaseIdAlgorithmReported = true;
-            }
-            else if (TestCaseIdAlgorithm != discoveryCompleteEventArgs.TestCaseIdAlgorithm)
-            {
-                TestCaseIdAlgorithm = null;
+                foreach (KeyValuePair<string, string> algorithm in discoveryCompleteEventArgs.TestCaseIdAlgorithms)
+                {
+                    TestCaseIdAlgorithms[algorithm.Key] = algorithm.Value;
+                }
             }
         }
 

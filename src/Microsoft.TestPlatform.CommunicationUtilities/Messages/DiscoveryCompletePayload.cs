@@ -58,15 +58,16 @@ public class DiscoveryCompletePayload
     public Dictionary<string, HashSet<string>>? DiscoveredExtensions { get; set; } = new();
 
     /// <summary>
-    /// Gets or sets the name of the algorithm that computed the ids of the tests this discovery
-    /// reported, e.g. <c>SHA1</c> or <c>xxHash128</c>.
+    /// Gets or sets the algorithm that computed the ids of the tests discovered in each source,
+    /// keyed by source path, with values such as <c>SHA1</c> or <c>xxHash128</c>.
     /// </summary>
     /// <remarks>
-    /// The resolved algorithm rather than the declared one, and a name rather than a boolean, so an
-    /// algorithm added later is a new name. Reaches a client through
-    /// <see cref="Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.DiscoveryCompleteEventArgs.TestCaseIdAlgorithm"/>,
-    /// where the reason it is reported at all is written down. <see langword="null"/> from a peer
-    /// that predates it.
+    /// The resolved algorithm rather than the declared one, keyed per source because that is the
+    /// granularity at which it can differ, and a name rather than a boolean so an algorithm added
+    /// later is a new name. Reaches a client through
+    /// <see cref="Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.DiscoveryCompleteEventArgs.TestCaseIdAlgorithms"/>,
+    /// where the reason it is reported at all is written down. A source is absent when the peer that
+    /// discovered it predates this property.
     /// </remarks>
-    public string? TestCaseIdAlgorithm { get; set; }
+    public IDictionary<string, string>? TestCaseIdAlgorithms { get; set; }
 }

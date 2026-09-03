@@ -122,6 +122,9 @@ internal class ParallelDiscoveryEventsHandler : ITestDiscoveryEventsHandler2
         // Collect Aggregated Metrics Data
         var aggregatedDiscoveryDataMetrics = _discoveryDataAggregator.GetMetrics();
 
+        // Collect the algorithm each source's ids were computed with, merged across the hosts.
+        var aggregatedTestCaseIdAlgorithms = _discoveryDataAggregator.GetTestCaseIdAlgorithms();
+
         // In case of sequential discovery - RawMessage would have contained a 'DiscoveryCompletePayload' object
         // To send a raw message - we need to create raw message from an aggregated payload object
         var testDiscoveryCompletePayload = new DiscoveryCompletePayload
@@ -135,7 +138,7 @@ internal class ParallelDiscoveryEventsHandler : ITestDiscoveryEventsHandler2
             SkippedDiscoverySources = skippedDiscovery,
             DiscoveredExtensions = _discoveryDataAggregator.DiscoveredExtensions,
             Metrics = aggregatedDiscoveryDataMetrics,
-            TestCaseIdAlgorithm = _discoveryDataAggregator.TestCaseIdAlgorithm,
+            TestCaseIdAlgorithms = aggregatedTestCaseIdAlgorithms,
         };
 
         // Sending discovery complete message to IDE
@@ -152,7 +155,7 @@ internal class ParallelDiscoveryEventsHandler : ITestDiscoveryEventsHandler2
             SkippedDiscoveredSources = skippedDiscovery,
             DiscoveredExtensions = _discoveryDataAggregator.DiscoveredExtensions,
             Metrics = aggregatedDiscoveryDataMetrics,
-            TestCaseIdAlgorithm = _discoveryDataAggregator.TestCaseIdAlgorithm,
+            TestCaseIdAlgorithms = aggregatedTestCaseIdAlgorithms,
         };
 
         // send actual test discovery complete to clients
