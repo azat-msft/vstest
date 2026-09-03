@@ -131,7 +131,10 @@ public class DiscoveryCompleteSerializationTests
             "PartiallyDiscoveredSources": [],
             "NotDiscoveredSources": [],
             "SkippedDiscoverySources": [],
-            "DiscoveredExtensions": {}
+            "DiscoveredExtensions": {},
+            "TestCaseIdAlgorithms": {
+              "Contoso.Math.Tests.dll": "SHA1"
+            }
           }
         }
         """;
@@ -164,7 +167,10 @@ public class DiscoveryCompleteSerializationTests
             "PartiallyDiscoveredSources": [],
             "NotDiscoveredSources": [],
             "SkippedDiscoverySources": [],
-            "DiscoveredExtensions": {}
+            "DiscoveredExtensions": {},
+            "TestCaseIdAlgorithms": {
+              "Contoso.Math.Tests.dll": "SHA1"
+            }
           }
         }
         """;
@@ -247,6 +253,7 @@ public class DiscoveryCompleteSerializationTests
                 }
             },
             Metrics = new Dictionary<string, object> { ["TotalTestsDiscovered"] = 150 },
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["Contoso.Math.Tests.dll"] = "SHA1" },
         };
     }
 
@@ -263,6 +270,27 @@ public class DiscoveryCompleteSerializationTests
         Assert.AreEqual("Contoso.Math.Tests.dll", tests[0].Source);
         Assert.AreEqual("SubtractTest", tests[0].DisplayName);
         Assert.AreEqual(new Guid("b2c3d4e5-f6a7-8901-bcde-f12345678901"), tests[0].Id);
+        Assert.IsNotNull(result.TestCaseIdAlgorithms);
+        Assert.AreEqual("SHA1", result.TestCaseIdAlgorithms["Contoso.Math.Tests.dll"]);
+    }
+
+    /// <summary>
+    /// A message from a peer old enough not to report the algorithm leaves it unset, rather than
+    /// failing to deserialize or inventing a value.
+    /// </summary>
+    [TestMethod]
+    public void DeserializePayloadWithoutTestCaseIdAlgorithms()
+    {
+        const string json = """
+            {"Version":7,"MessageType":"TestDiscovery.Completed","Payload":{"TotalTests":150,"IsAborted":false}}
+            """;
+
+        var message = JsonDataSerializer.Instance.DeserializeMessage(json);
+        var result = JsonDataSerializer.Instance.DeserializePayload<DiscoveryCompletePayload>(message);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(150, result.TotalTests);
+        Assert.IsNull(result.TestCaseIdAlgorithms);
     }
 
 }

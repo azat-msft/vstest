@@ -181,6 +181,55 @@ public class DiscoverTests : AcceptanceTestBase
         Assert.HasCount(2, eventHandler2.FullyDiscoveredSources!);
     }
 
+    /// <summary>
+    /// The reported algorithms name exactly the sources the client sees on the test cases.
+    /// </summary>
+    /// <remarks>
+    /// The invariant a client caching discovery results by test id depends on: it looks the
+    /// algorithm up by the <see cref="TestCase.Source"/> of a test it holds, so a key naming
+    /// anything else matches nothing and the report silently describes sources nobody asked about.
+    /// Asserted here, across the real process boundary with real adapters, because the things that
+    /// rewrite a source - the package substitution, the deployment path converter - live on that
+    /// boundary and a unit test on either side of it cannot see both ends.
+    /// </remarks>
+    [TestMethod]
+    [TestMatrix(testHost: Net)]
+    public void DiscoverTestUsingEventHandler2ShouldReportTheAlgorithmOfEveryDiscoveredSource(RunnerInfo runnerInfo)
+    {
+        SetTestEnvironment(_testEnvironment, runnerInfo);
+        Setup();
+
+        var eventHandler2 = new DiscoveryEventHandler2();
+
+        _vstestConsoleWrapper.DiscoverTests(
+            GetTestAssemblies(),
+            GetDefaultRunSettings(),
+            null,
+            eventHandler2);
+
+        Assert.IsNotEmpty(eventHandler2.DiscoveredTestCases, "The discovery found no tests to check against.");
+        Assert.IsNotNull(eventHandler2.TestCaseIdAlgorithms);
+
+        var discoveredSources = eventHandler2.DiscoveredTestCases
+            .Select(testCase => testCase.Source)
+            .Distinct()
+            .ToList();
+
+        foreach (string source in discoveredSources)
+        {
+            Assert.IsTrue(
+                eventHandler2.TestCaseIdAlgorithms.ContainsKey(source),
+                $"No algorithm was reported for '{source}'. Reported keys: {string.Join(", ", eventHandler2.TestCaseIdAlgorithms.Keys)}");
+        }
+
+        // And nothing extra: a key naming a source no test case carries is a key the client can
+        // never match, which is how the package and deployment rewrites went unnoticed before.
+        foreach (string source in eventHandler2.TestCaseIdAlgorithms.Keys)
+        {
+            Assert.Contains(source, discoveredSources);
+        }
+    }
+
     [TestMethod]
     // Normally we test on two runner, against single .NET Testhost, but because source navigation happens in testhost
     // it is better to test against both desktop and core runners to make sure source navigation discovery works in both scenarios.

@@ -259,9 +259,33 @@ public class TestRequestHandler : ITestRequestHandler, IDeploymentAwareTestReque
                 NotDiscoveredSources = discoveryCompleteEventArgs.NotDiscoveredSources,
                 SkippedDiscoverySources = discoveryCompleteEventArgs.SkippedDiscoveredSources,
                 DiscoveredExtensions = discoveryCompleteEventArgs.DiscoveredExtensions,
+                // Keyed by source, so the keys need the same conversion the test cases get: a
+                // deployment-aware host discovers under a remote path and reports test cases whose
+                // Source is the local one, and a client matches these entries against that Source.
+                TestCaseIdAlgorithms = UpdateTestCaseIdAlgorithmPaths(discoveryCompleteEventArgs.TestCaseIdAlgorithms),
             },
             _protocolVersion);
         SendData(data);
+    }
+
+    /// <summary>
+    /// Converts the source paths keying <paramref name="testCaseIdAlgorithms"/> the same way the
+    /// discovered test cases are converted, so the keys still name the sources the client sees.
+    /// </summary>
+    private IDictionary<string, string>? UpdateTestCaseIdAlgorithmPaths(IDictionary<string, string>? testCaseIdAlgorithms)
+    {
+        if (testCaseIdAlgorithms is null || _pathConverter is NullPathConverter)
+        {
+            return testCaseIdAlgorithms;
+        }
+
+        var converted = new Dictionary<string, string>(testCaseIdAlgorithms.Count);
+        foreach (KeyValuePair<string, string> algorithm in testCaseIdAlgorithms)
+        {
+            converted[_pathConverter.UpdatePath(algorithm.Key, PathConversionDirection.Send)!] = algorithm.Value;
+        }
+
+        return converted;
     }
 
     /// <inheritdoc />

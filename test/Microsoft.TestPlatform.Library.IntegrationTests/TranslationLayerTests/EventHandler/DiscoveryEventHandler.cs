@@ -76,6 +76,11 @@ public class DiscoveryEventHandler2 : ITestDiscoveryEventsHandler2
     public IList<string>? NotDiscoveredSources { get; private set; }
     public IList<string>? SkippedDiscoveredSources { get; private set; }
 
+    /// <summary>
+    /// The algorithm that computed the ids of each source's tests, keyed by source.
+    /// </summary>
+    public IDictionary<string, string>? TestCaseIdAlgorithms { get; private set; }
+
     public List<TestMessage> TestMessages;
 
     /// <summary>
@@ -111,6 +116,7 @@ public class DiscoveryEventHandler2 : ITestDiscoveryEventsHandler2
         PartiallyDiscoveredSources = discoveryCompleteEventArgs.PartiallyDiscoveredSources;
         NotDiscoveredSources = discoveryCompleteEventArgs.NotDiscoveredSources;
         SkippedDiscoveredSources = discoveryCompleteEventArgs.SkippedDiscoveredSources;
+        TestCaseIdAlgorithms = discoveryCompleteEventArgs.TestCaseIdAlgorithms;
     }
 
     public void HandleDiscoveredTests(IEnumerable<TestCase>? discoveredTestCases)

@@ -49,6 +49,100 @@ public class DiscoveryDataAggregatorTests
         Assert.AreEqual(10, aggregator.TotalTests, "Aggregated totalTests count does not match");
     }
 
+    /// <summary>
+    /// Sources discovered by different hosts are merged, so a solution whose projects are on
+    /// different testhosts keeps a usable answer for each of them.
+    /// </summary>
+    [TestMethod]
+    public void AggregateShouldMergeTheTestCaseIdAlgorithmsOfEveryHost()
+    {
+        var aggregator = new DiscoveryDataAggregator();
+
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["A.dll"] = "xxHash128" },
+        });
+        aggregator.Aggregate(new(totalTests: 3, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["B.dll"] = "SHA1" },
+        });
+
+        Dictionary<string, string>? algorithms = aggregator.GetTestCaseIdAlgorithms();
+
+        Assert.IsNotNull(algorithms);
+        Assert.HasCount(2, algorithms);
+        Assert.AreEqual("xxHash128", algorithms["A.dll"]);
+        Assert.AreEqual("SHA1", algorithms["B.dll"]);
+    }
+
+    /// <summary>
+    /// A host that predates the report leaves its own sources out, and does not take its
+    /// neighbours' sources down with it.
+    /// </summary>
+    /// <remarks>
+    /// This is the case that made reporting per source worth it. Reduced to one value for the run,
+    /// a single old testhost in a solution would make every discovery unaccounted for, and a client
+    /// caching by test id would have to re-discover everything on every single run - or ignore the
+    /// disagreement and miss the project whose ids did change.
+    /// </remarks>
+    [TestMethod]
+    public void AggregateShouldKeepTheSourcesReportedByHostsThatDoReportOne()
+    {
+        var aggregator = new DiscoveryDataAggregator();
+
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["new.dll"] = "xxHash128" },
+        });
+
+        // An older testhost reports no algorithms at all.
+        aggregator.Aggregate(new(totalTests: 3, isAborted: false));
+
+        Dictionary<string, string>? algorithms = aggregator.GetTestCaseIdAlgorithms();
+
+        Assert.IsNotNull(algorithms);
+        Assert.HasCount(1, algorithms);
+        Assert.AreEqual("xxHash128", algorithms["new.dll"]);
+    }
+
+    /// <summary>
+    /// Nothing reported at all reads as no information, rather than as an empty collection a client
+    /// could mistake for "no source used any algorithm".
+    /// </summary>
+    [TestMethod]
+    public void AggregateShouldReportNoTestCaseIdAlgorithmsWhenNoHostReportsOne()
+    {
+        var aggregator = new DiscoveryDataAggregator();
+
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false));
+
+        Assert.IsNull(aggregator.GetTestCaseIdAlgorithms());
+    }
+
+    /// <summary>
+    /// The result is a copy, so a caller holding it does not see later aggregation change it.
+    /// </summary>
+    [TestMethod]
+    public void GetTestCaseIdAlgorithmsShouldReturnACopy()
+    {
+        var aggregator = new DiscoveryDataAggregator();
+
+        aggregator.Aggregate(new(totalTests: 2, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["A.dll"] = "SHA1" },
+        });
+
+        Dictionary<string, string>? first = aggregator.GetTestCaseIdAlgorithms();
+
+        aggregator.Aggregate(new(totalTests: 1, isAborted: false)
+        {
+            TestCaseIdAlgorithms = new Dictionary<string, string> { ["B.dll"] = "SHA1" },
+        });
+
+        Assert.IsNotNull(first);
+        Assert.HasCount(1, first);
+    }
+
     [TestMethod]
     public void AggregateDiscoveryDataMetricsShouldAggregateMetricsCorrectly()
     {

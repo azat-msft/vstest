@@ -41,6 +41,36 @@ internal sealed class DiscoveryDataAggregator
     public long TotalTests { get; private set; }
 
     /// <summary>
+    /// The algorithm that computed the ids of the tests in each source, keyed by source path.
+    /// </summary>
+    /// <remarks>
+    /// Merged across hosts rather than reduced to one value for the run, because the hosts of one
+    /// run can be different builds of the test platform - on .NET each test project brings its own
+    /// testhost through its own package reference - and so can genuinely disagree. A source
+    /// discovered by a host that predates the report is simply absent, which leaves the sources its
+    /// neighbours did account for usable instead of dragging the whole run down to unknown.
+    /// </remarks>
+    private Dictionary<string, string> TestCaseIdAlgorithms { get; } = new();
+
+    /// <summary>
+    /// Returns the algorithm that computed the ids of the tests in each source, keyed by source
+    /// path, or <see langword="null"/> when no host reported one.
+    /// </summary>
+    /// <remarks>
+    /// A copy, like the other aggregated collections this class hands out, so that a caller holding
+    /// the result cannot observe it change underneath.
+    /// </remarks>
+    public Dictionary<string, string>? GetTestCaseIdAlgorithms()
+    {
+        lock (_dataUpdateSyncObject)
+        {
+            return TestCaseIdAlgorithms.Count > 0
+                ? new Dictionary<string, string>(TestCaseIdAlgorithms)
+                : null;
+        }
+    }
+
+    /// <summary>
     /// A collection of aggregated discovered extensions.
     /// </summary>
     public Dictionary<string, HashSet<string>> DiscoveredExtensions { get; private set; } = new();
@@ -107,6 +137,14 @@ internal sealed class DiscoveryDataAggregator
 
             // Aggregate the discovered extensions.
             DiscoveredExtensions = TestExtensions.CreateMergedDictionary(DiscoveredExtensions, discoveryCompleteEventArgs.DiscoveredExtensions);
+
+            if (discoveryCompleteEventArgs.TestCaseIdAlgorithms is not null)
+            {
+                foreach (KeyValuePair<string, string> algorithm in discoveryCompleteEventArgs.TestCaseIdAlgorithms)
+                {
+                    TestCaseIdAlgorithms[algorithm.Key] = algorithm.Value;
+                }
+            }
         }
 
         AggregateMetrics(discoveryCompleteEventArgs.Metrics);

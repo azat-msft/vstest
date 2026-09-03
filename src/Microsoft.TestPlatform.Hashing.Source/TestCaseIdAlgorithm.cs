@@ -98,6 +98,39 @@ internal static class TestCaseIdAlgorithmResolver
             : TestCaseIdAlgorithm.XxHash128;
 
     /// <summary>
+    /// The name of the algorithm this process computes ids with, as reported to a client.
+    /// </summary>
+    public static string AmbientName => ToName(Ambient);
+
+    /// <summary>
+    /// The name reported for an algorithm, on the wire and in a client's own storage.
+    /// </summary>
+    /// <remarks>
+    /// The names are written out rather than taken from the enum member names, because a client
+    /// persists them: Visual Studio stamps this on its test store to decide whether the ids it holds
+    /// are still the ids discovery would produce. Renaming a member here must not silently change
+    /// what a stored stamp compares against, and the name is not a value this repo is free to
+    /// reformat later.
+    /// </remarks>
+    public static string ToName(TestCaseIdAlgorithm algorithm)
+        => algorithm switch
+        {
+            TestCaseIdAlgorithm.Sha1 => Sha1Name,
+            TestCaseIdAlgorithm.XxHash128 => XxHash128Name,
+            _ => throw new ArgumentOutOfRangeException(nameof(algorithm), algorithm, null),
+        };
+
+    /// <summary>
+    /// The reported name of <see cref="TestCaseIdAlgorithm.Sha1"/>.
+    /// </summary>
+    public const string Sha1Name = "SHA1";
+
+    /// <summary>
+    /// The reported name of <see cref="TestCaseIdAlgorithm.XxHash128"/>.
+    /// </summary>
+    public const string XxHash128Name = "xxHash128";
+
+    /// <summary>
     /// Resolves the algorithm a declared value of the flag selects.
     /// </summary>
     /// <remarks>

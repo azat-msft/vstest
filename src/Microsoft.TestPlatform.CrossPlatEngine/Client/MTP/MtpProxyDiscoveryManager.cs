@@ -77,7 +77,49 @@ internal sealed class MtpProxyDiscoveryManager : IProxyDiscoveryManager, IDispos
             }
         }
 
-        eventHandler.HandleDiscoveryComplete(new DiscoveryCompleteEventArgs(totalTests, aborted), null);
+        eventHandler.HandleDiscoveryComplete(
+            new DiscoveryCompleteEventArgs(totalTests, aborted)
+            {
+                // The declared value if the run declared one, and otherwise the runner's own
+                // environment - which is what the test case falls back to when the converter is
+                // handed no algorithm, so this is the algorithm that computed the ids either way.
+                TestCaseIdAlgorithms = BuildTestCaseIdAlgorithms(sources),
+            },
+            null);
+    }
+
+    /// <summary>
+    /// The algorithm the ids of each of <paramref name="sources"/> were computed with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Built with indexer assignment rather than <c>ToDictionary</c> because the sources of a run
+    /// are not necessarily distinct - <c>DiscoveryCriteria.Sources</c> concatenates the adapter
+    /// source map without removing duplicates, and the classic path warns about them rather than
+    /// rejecting them. Throwing here would escape before the discovery is ever reported complete,
+    /// leaving the run hanging rather than failing.
+    /// </para>
+    /// <para>
+    /// Keyed by source with no substitution, unlike the classic path, which keys a packaged run by
+    /// its package because that is what it rewrites every test case's source to. Nothing rewrites a
+    /// source here: Microsoft.Testing.Platform sources are the test applications themselves. Should
+    /// that ever change, this has to follow, because a key a client never sees on a test case is a
+    /// key it can never match.
+    /// </para>
+    /// </remarks>
+    private Dictionary<string, string>? BuildTestCaseIdAlgorithms(List<string> sources)
+    {
+        string algorithm = TestCaseIdAlgorithmResolver.ToName(_testCaseIdAlgorithm ?? TestCaseIdAlgorithmResolver.Ambient);
+        var algorithms = new Dictionary<string, string>();
+
+        foreach (string source in sources)
+        {
+            algorithms[source] = algorithm;
+        }
+
+        // Nothing rather than an empty collection when there was no source, so this agrees with the
+        // classic path about what "no discovery was attempted" looks like on the wire.
+        return algorithms.Count > 0 ? algorithms : null;
     }
 
     public void Abort() => _cancellationTokenSource.Cancel();

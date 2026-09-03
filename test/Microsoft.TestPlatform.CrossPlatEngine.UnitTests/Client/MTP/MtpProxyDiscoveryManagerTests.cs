@@ -101,6 +101,95 @@ public class MtpProxyDiscoveryManagerTests
         Assert.IsTrue(_client.Disposed);
     }
 
+    /// <summary>
+    /// The MTP path reports the algorithm it computed the ids with too, so a client caching ids does
+    /// not have to guess for half of its projects.
+    /// </summary>
+    /// <remarks>
+    /// The runner converts MTP nodes into test cases itself rather than receiving them from a
+    /// testhost, so it is the runner - not a testhost - that resolves the algorithm here, and it is
+    /// the runner that has to report it.
+    /// </remarks>
+    [TestMethod]
+    public void DiscoverTestsReportsTheAlgorithmTheRunDeclared()
+    {
+        DiscoveryCompleteEventArgs? args = ReportedCompletion(
+            $"""
+            <RunSettings>
+              <RunConfiguration>
+                <EnvironmentVariables>
+                  <VSTEST_DISABLE_XXHASH128_TESTCASE_ID>0</VSTEST_DISABLE_XXHASH128_TESTCASE_ID>
+                </EnvironmentVariables>
+              </RunConfiguration>
+            </RunSettings>
+            """);
+
+        Assert.IsNotNull(args);
+        Assert.IsNotNull(args.TestCaseIdAlgorithms);
+        Assert.AreEqual("xxHash128", args.TestCaseIdAlgorithms[Source]);
+    }
+
+    [TestMethod]
+    public void DiscoverTestsReportsSha1WhenTheRunDeclaresTheOptOut()
+    {
+        DiscoveryCompleteEventArgs? args = ReportedCompletion(
+            $"""
+            <RunSettings>
+              <RunConfiguration>
+                <EnvironmentVariables>
+                  <VSTEST_DISABLE_XXHASH128_TESTCASE_ID>1</VSTEST_DISABLE_XXHASH128_TESTCASE_ID>
+                </EnvironmentVariables>
+              </RunConfiguration>
+            </RunSettings>
+            """);
+
+        Assert.IsNotNull(args);
+        Assert.IsNotNull(args.TestCaseIdAlgorithms);
+        Assert.AreEqual("SHA1", args.TestCaseIdAlgorithms[Source]);
+    }
+
+    /// <summary>
+    /// A run that declares nothing is reported too, with the algorithm the runner's own environment
+    /// resolves to - which is what the test case falls back to when the converter is handed no
+    /// algorithm, so the report describes the ids that were actually produced.
+    /// </summary>
+    /// <remarks>
+    /// Asserted against the algorithm the converter itself resolves from the same ambient
+    /// environment, rather than against "one of the two known names", which cannot fail.
+    /// </remarks>
+    [TestMethod]
+    public void DiscoverTestsReportsAnAlgorithmWhenTheRunDeclaresNothing()
+    {
+        DiscoveryCompleteEventArgs? args = ReportedCompletion("<RunSettings></RunSettings>");
+
+        // What an id computed with no declared algorithm actually used, derived from the production
+        // path rather than restated here, so this keeps holding after the default moves.
+        TestCase ambient = MtpTestNodeConverter.ToTestCase(ActionNode("uid-1", "TestOne"), Source, testCaseIdAlgorithm: null);
+        TestCase asSha1 = MtpTestNodeConverter.ToTestCase(
+            ActionNode("uid-1", "TestOne"),
+            Source,
+            MtpTestNodeConverter.ResolveTestCaseIdAlgorithm(new Dictionary<string, string?> { ["VSTEST_DISABLE_XXHASH128_TESTCASE_ID"] = "1" }));
+
+        string expected = ambient.Id == asSha1.Id ? "SHA1" : "xxHash128";
+
+        Assert.IsNotNull(args);
+        Assert.IsNotNull(args.TestCaseIdAlgorithms);
+        Assert.AreEqual(expected, args.TestCaseIdAlgorithms[Source]);
+    }
+
+    private DiscoveryCompleteEventArgs? ReportedCompletion(string runSettings)
+    {
+        DiscoveryCompleteEventArgs? args = null;
+        _eventHandler
+            .Setup(h => h.HandleDiscoveryComplete(It.IsAny<DiscoveryCompleteEventArgs>(), It.IsAny<IEnumerable<TestCase>>()))
+            .Callback((DiscoveryCompleteEventArgs complete, IEnumerable<TestCase>? _) => args = complete);
+
+        using var manager = new MtpProxyDiscoveryManager();
+        manager.DiscoverTests(new DiscoveryCriteria([Source], 1, runSettings), _eventHandler.Object);
+
+        return args;
+    }
+
     [TestMethod]
     public void SelectedRunFailsWhenDiscoveredActionNodeHasNoUid()
     {

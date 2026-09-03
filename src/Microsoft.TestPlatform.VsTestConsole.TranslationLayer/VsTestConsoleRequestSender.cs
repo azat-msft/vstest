@@ -613,6 +613,7 @@ internal class VsTestConsoleRequestSender : ITranslationLayerRequestSender
                         SkippedDiscoveredSources = discoveryCompletePayload.SkippedDiscoverySources,
                         DiscoveredExtensions = discoveryCompletePayload.DiscoveredExtensions,
                         Metrics = discoveryCompletePayload.Metrics,
+                        TestCaseIdAlgorithms = discoveryCompletePayload.TestCaseIdAlgorithms,
                     };
 
                     eventHandler.HandleDiscoveryComplete(
@@ -704,6 +705,7 @@ internal class VsTestConsoleRequestSender : ITranslationLayerRequestSender
                         NotDiscoveredSources = discoveryCompletePayload.NotDiscoveredSources,
                         SkippedDiscoveredSources = discoveryCompletePayload.SkippedDiscoverySources,
                         DiscoveredExtensions = discoveryCompletePayload.DiscoveredExtensions,
+                        TestCaseIdAlgorithms = discoveryCompletePayload.TestCaseIdAlgorithms,
                     };
 
                     // Adding Metrics from VsTestConsole
