@@ -231,16 +231,6 @@ public class DiscoveryManager : IDiscoveryManager
     /// <paramref name="discoveryCriteria"/>.
     /// </summary>
     /// <remarks>
-    /// Every source this process discovered had its ids computed by this process, so they all carry
-    /// the algorithm this process resolved. The value is still reported per source rather than once,
-    /// because a client aggregates the sources of a whole solution, which several hosts discover -
-    /// and those hosts can be different builds of the test platform, so they can disagree.
-    /// </remarks>
-    /// <summary>
-    /// The algorithm that computed the ids of the tests in each source of
-    /// <paramref name="discoveryCriteria"/>.
-    /// </summary>
-    /// <remarks>
     /// <para>
     /// Every source this process discovered had its ids computed by this process, so they all carry
     /// the algorithm this process resolved. The value is still reported per source rather than once,

@@ -282,8 +282,7 @@ public class TestRequestHandler : ITestRequestHandler, IDeploymentAwareTestReque
         var converted = new Dictionary<string, string>(testCaseIdAlgorithms.Count);
         foreach (KeyValuePair<string, string> algorithm in testCaseIdAlgorithms)
         {
-            string key = _pathConverter.UpdatePath(algorithm.Key, PathConversionDirection.Send) ?? algorithm.Key;
-            converted[key] = algorithm.Value;
+            converted[_pathConverter.UpdatePath(algorithm.Key, PathConversionDirection.Send)!] = algorithm.Value;
         }
 
         return converted;

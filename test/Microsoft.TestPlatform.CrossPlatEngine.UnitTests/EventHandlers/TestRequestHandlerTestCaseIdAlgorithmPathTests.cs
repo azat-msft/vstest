@@ -143,10 +143,12 @@ public class TestRequestHandlerTestCaseIdAlgorithmPathTests
     }
 
     /// <summary>
-    /// A request handler that declares itself deployment aware, which is what makes
-    /// <c>InitializeCommunication</c> build a real path converter from the environment.
+    /// A request handler with the constructor arguments these tests need. The path conversion is
+    /// switched on by the <c>VSTEST_UWP_DEPLOY_*</c> environment variables rather than by this type:
+    /// <see cref="TestRequestHandler"/> already implements
+    /// <see cref="IDeploymentAwareTestRequestHandler"/> itself, so a plain subclass behaves the same.
     /// </summary>
-    private sealed class DeploymentAwareRequestHandler : TestRequestHandler, IDeploymentAwareTestRequestHandler
+    private sealed class DeploymentAwareRequestHandler : TestRequestHandler
     {
         public DeploymentAwareRequestHandler(
             TestHostConnectionInfo connectionInfo,
