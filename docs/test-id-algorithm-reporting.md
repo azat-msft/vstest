@@ -44,6 +44,50 @@ behind it cannot be matched against a stamp.
 
 Both discovery paths report it: the classic vstest path and the Microsoft.Testing.Platform path.
 
+## The message on the wire
+
+The value is a new property on the payload of the existing `TestDiscovery.Completed` message. The
+two fields that matter here are the per-test `Id`, which is what the store is keyed by, and
+`TestCaseIdAlgorithm`, which says how every one of those ids was computed:
+
+```jsonc
+{
+  "Version": 7,
+  "MessageType": "TestDiscovery.Completed",
+  "Payload": {
+    "TotalTests": 150,
+    "LastDiscoveredTests": [
+      {
+        "Id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",  // the test id, computed with the algorithm below
+        "FullyQualifiedName": "Contoso.Math.Tests.CalculatorTests.SubtractTest",
+        "DisplayName": "SubtractTest",
+        "ExecutorUri": "executor://MSTestAdapter/v2",
+        "Source": "Contoso.Math.Tests.dll",
+        "CodeFilePath": null,
+        "LineNumber": -1,
+        "Properties": []
+      }
+    ],
+    "IsAborted": false,
+    "Metrics": { "TotalTestsDiscovered": 150 },
+    "FullyDiscoveredSources": [],
+    "PartiallyDiscoveredSources": [],
+    "NotDiscoveredSources": [],
+    "SkippedDiscoverySources": [],
+    "DiscoveredExtensions": {},
+
+    "TestCaseIdAlgorithm": "SHA1"   // NEW: "SHA1", "xxHash128", or absent/null
+  }
+}
+```
+
+Everything except the last line is unchanged. `TestCaseIdAlgorithm` describes the whole discovery,
+not one test case, so it sits on the payload rather than on each test: it is a property of the run,
+and it is still reported when a discovery returns no tests at all.
+
+Note that `LastDiscoveredTests` only carries the final batch — earlier tests arrive in preceding
+`TestDiscovery.TestFound` messages. The algorithm applies to all of them.
+
 ## Suggested Test Explorer behaviour
 
 1. Store the reported name alongside the test store, once for the whole store rather than per test.
