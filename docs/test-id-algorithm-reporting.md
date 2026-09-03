@@ -26,7 +26,7 @@ path, on the discovery-completed event the TranslationLayer already hands you. E
 |---|---|
 | `"SHA1"` | Ids for that source that vstest computed were computed with the legacy SHA1 algorithm. |
 | `"xxHash128"` | Ids for that source that vstest computed were computed with xxHash128. |
-| source absent | Unknown - vstest is not vouching for that source's ids. |
+| source absent | Read it as `"SHA1"` - see below. |
 
 Four things are worth knowing about it:
 
@@ -35,24 +35,39 @@ Four things are worth knowing about it:
   changes to it.
 - **It describes the ids vstest computes**, not ids an adapter assigns itself. MSTest, for example,
   sets `TestCase.Id` directly, so for an MSTest source the reported name describes an algorithm that
-  did not produce those ids. It is still reported for that source, and it still changes when vstest's
-  own algorithm changes - so acting on it costs an unnecessary re-discovery of such a source at the
-  transition, and never leaves a stale id behind.
+  did not produce those ids. Harmless either way: those ids do not move when vstest's algorithm
+  moves, so a spurious invalidation costs one re-discovery and a missed one changes nothing.
 - **It is reported per source, not per run.** That is the granularity at which it can genuinely
   differ - see below.
-- **It is a name, not a boolean.** A third algorithm later is simply a third name. Treat a name you
-  do not recognize exactly as you treat an absent source.
+- **It is a name, not a boolean.** A third algorithm later is simply a third name. A name you do not
+  recognize is the one case you genuinely cannot interpret: treat it as a mismatch.
 - **It does not depend on telemetry opt-in.** This is a correctness signal, so it is reported for
   every user.
 
-A source is absent when it was discovered by a vstest older than this change. The whole collection
-is absent only when vstest gave up before any discovery was attempted - a testhost that failed to
-launch, or a cancellation that arrived first.
+### An absent source means SHA1
+
+A source is absent when it was discovered by a vstest older than this change, and the whole property
+is absent when the whole discovery was. Read both as `"SHA1"` rather than as "unknown", because a
+vstest that does not report the algorithm also does not contain xxHash128 - SHA1 is the only thing it
+could have produced.
+
+This matters more than it sounds, and reading it as "unknown" instead is wrong in three ways:
+
+- **The first upgrade would invalidate every store for nothing.** The release that adds the algorithm
+  keeps SHA1 as the default and changes no id at all. Comparing an unstamped store against a report
+  of `"SHA1"` matches, and nothing happens - which is the intent of shipping it over two releases.
+  Treating absent as "unknown" would instead drop every user's store once, on the one release
+  designed to be a no-op.
+- **A permanently mixed solution would never settle.** The project on the older test SDK reports
+  nothing on every run, forever. Read as SHA1 it matches its own stamp and is left alone; read as
+  unknown it would be re-discovered on every single discovery.
+- **The remaining risk is one wasted re-discovery.** If a user opted in to xxHash128 early, via the
+  feature flag, on a Visual Studio that did not yet stamp, the store holds xxHash ids that this rule
+  assumes are SHA1. The stamp then disagrees with the next report, so you invalidate once. The guess
+  is wrong and the outcome is still safe.
 
 Note that a source is reported even when discovery of it aborted or found nothing: the name states
-which algorithm that host would have used, not that the source yielded tests. Erring this way is
-deliberate, since under the behaviour suggested below the cost of an extra entry is at worst one
-unnecessary re-discovery, whereas a missing one risks keeping a stale id.
+which algorithm that host would have used, not that the source yielded tests.
 
 Both discovery paths report it: the classic vstest path and the Microsoft.Testing.Platform path.
 
@@ -103,8 +118,8 @@ two fields that matter here are the per-test `Id`, which is what the store is ke
     "SkippedDiscoverySources": [],
     "DiscoveredExtensions": {},
 
-    // NEW. Values are "SHA1" or "xxHash128"; a source vstest cannot vouch for is simply absent,
-    // and the whole property is absent from a peer that predates it.
+    // NEW. Values are "SHA1" or "xxHash128"; a source discovered by a vstest that predates this is
+    // simply absent, as is the whole property, and both mean SHA1.
     "TestCaseIdAlgorithms": {
       "Contoso.Math.Tests.dll": "SHA1"
     }
@@ -119,17 +134,26 @@ names.
 
 ## Suggested Test Explorer behaviour
 
-1. Store the reported name per source alongside the test store.
-2. On discovery, compare each source's reported name with the stored one.
-3. If a source's name differs - including when it is absent now, was absent before, or is a name you
-   do not recognize - drop that source's entries and re-discover it. Do not try to merge or migrate:
-   old ids cannot be mapped to new ones, since the point is that the hash changed.
-4. Leave the sources whose names match alone.
-5. When a source has no stamp yet, record the reported name. Whether you also invalidate that source
-   once at that point is your call; invalidating is safer and costs one discovery of one source.
+The discovery that reports the algorithm has already delivered the new ids - the `TestFound` batches
+precede `TestDiscovery.Completed`. So the action on a mismatch is to *replace* what the store held
+for that source, not to run a second discovery.
 
-For a user who never touches the feature flag, this should fire exactly once per source: on the
-first discovery after taking the vstest release that flips the default.
+1. Stamp each source in the store with its reported name, reading an absent source as `"SHA1"`.
+2. On discovery, compare each source's reported name with the stored one.
+3. If a source's name differs - or is a name you do not recognize - drop what the store held for that
+   source and keep only what this discovery just returned. Do not try to merge or migrate: old ids
+   cannot be mapped to new ones, since the point is that the hash changed.
+4. Leave sources whose names match alone, and leave sources this discovery did not cover alone.
+5. A store with no stamps at all is a store written before this existed, so its ids are SHA1. Stamp
+   it as such rather than invalidating it.
+
+For a user who never touches the feature flag this costs nothing on the release that adds the
+algorithm, and fires exactly once per source on the release that flips the default.
+
+One caveat on ordering: between the first `TestFound` batch and `TestDiscovery.Completed` you know
+the new ids but not yet the algorithm. If you merge batches into the live model as they arrive, a
+user could briefly see both old and new entries during that one discovery, resolved as soon as the
+completion arrives.
 
 ## Why not read the algorithm off the ids
 
